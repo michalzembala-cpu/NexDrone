@@ -1,0 +1,58 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Śmigła (rozmyty pierścień) -->
+    <path
+        android:fillColor="#334FC3F7"
+        android:pathData="M36,36 m-13,0 a13,13 0 1,0 26,0 a13,13 0 1,0 -26,0" />
+    <path
+        android:fillColor="#334FC3F7"
+        android:pathData="M72,36 m-13,0 a13,13 0 1,0 26,0 a13,13 0 1,0 -26,0" />
+    <path
+        android:fillColor="#334FC3F7"
+        android:pathData="M36,72 m-13,0 a13,13 0 1,0 26,0 a13,13 0 1,0 -26,0" />
+    <path
+        android:fillColor="#334FC3F7"
+        android:pathData="M72,72 m-13,0 a13,13 0 1,0 26,0 a13,13 0 1,0 -26,0" />
+
+    <!-- Ramiona (X) -->
+    <path
+        android:strokeColor="#81D4FA"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M36,36 L72,72 M72,36 L36,72" />
+
+    <!-- Piasty silników -->
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M36,36 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M72,36 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M36,72 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M72,72 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+
+    <!-- Kadłub – zewnętrzny -->
+    <path
+        android:fillColor="#E1F5FE"
+        android:pathData="M54,54 m-12,0 a12,12 0 1,0 24,0 a12,12 0 1,0 -24,0" />
+    <!-- Kadłub – środek -->
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M54,54 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0" />
+    <!-- Obiektyw kamery -->
+    <path
+        android:fillColor="#0F1A2B"
+        android:pathData="M54,54 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+    <!-- Refleks obiektywu -->
+    <path
+        android:fillColor="#B3E5FC"
+        android:pathData="M52,52 m-1,0 a1,1 0 1,0 2,0 a1,1 0 1,0 -2,0" />
+</vector>
