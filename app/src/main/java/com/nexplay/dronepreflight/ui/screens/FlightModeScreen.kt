@@ -1,8 +1,13 @@
 package com.nexplay.dronepreflight.ui.screens
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
@@ -36,6 +41,7 @@ fun FlightModeScreen(
     onDismiss: () -> Unit,
     onStartMonitor: () -> Unit,
     onStopMonitor: () -> Unit,
+    onRefresh: () -> Unit = {},
     onSaveFlight: (note: String, minutes: Int?) -> Unit = { _, _ -> },
 ) {
     val startedAt = rememberSaveable { System.currentTimeMillis() }
@@ -49,8 +55,11 @@ fun FlightModeScreen(
     var maxWind by remember { mutableStateOf(0.0) }
     var maxGust by remember { mutableStateOf(0.0) }
     var minVis by remember { mutableStateOf(Double.MAX_VALUE) }
+    // Historia wiatru dla wykresu — 1 próbka co 10 sek, keep ostatnie 180 = 30 min
+    val windHistory = remember { mutableStateListOf<Double>() }
 
     LaunchedEffect(Unit) {
+        var tick = 0
         while (true) {
             elapsedMs = System.currentTimeMillis() - startedAt
             when (state.assessment?.overall) {
@@ -62,7 +71,21 @@ fun FlightModeScreen(
             state.snapshot?.wind?.median?.let { if (it > maxWind) maxWind = it }
             state.snapshot?.gust?.median?.let { if (it > maxGust) maxGust = it }
             state.snapshot?.visibility?.median?.let { if (it < minVis) minVis = it }
+            // Wykres — 1 próbka co 10 sek
+            if (tick % 10 == 0) {
+                windHistory += (state.snapshot?.wind?.median ?: 0.0)
+                if (windHistory.size > 180) windHistory.removeAt(0)
+            }
+            tick++
             delay(1000)
+        }
+    }
+
+    // Auto-refresh podczas Flight Mode — co 3 min pobierz świeże dane
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(3 * 60 * 1000L)
+            onRefresh()
         }
     }
 
@@ -176,6 +199,15 @@ fun FlightModeScreen(
                     onStart = onStartMonitor,
                     onStop = onStopMonitor,
                 )
+
+                if (windHistory.size >= 2) {
+                    WindHistoryChart(
+                        history = windHistory.toList(),
+                        limit = state.limits.maxWindMs.windIn(units.wind),
+                        unitLabel = units.wind.short,
+                        unitConverter = { it.windIn(units.wind) },
+                    )
+                }
 
                 Button(
                     onClick = { showSummary = true },
@@ -299,6 +331,73 @@ private fun MonitorStrip(active: Boolean, onStart: () -> Unit, onStop: () -> Uni
         )
         TextButton(onClick = if (active) onStop else onStart) {
             Text(if (active) "STOP" else "START", color = OpsColors.Accent)
+        }
+    }
+}
+
+@Composable
+private fun WindHistoryChart(
+    history: List<Double>,
+    limit: Double,
+    unitLabel: String,
+    unitConverter: (Double) -> Double,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(OpsColors.BgPanel, RoundedCornerShape(10.dp))
+            .padding(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "WIATR PODCZAS LOTU",
+                color = OpsColors.TextSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                "${history.size * 10}s · limit ${"%.1f".format(limit)} $unitLabel",
+                color = OpsColors.TextSecondary,
+                style = MaterialTheme.typography.labelSmall,
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+        Canvas(
+            Modifier
+                .fillMaxWidth()
+                .height(80.dp),
+        ) {
+            if (history.isEmpty()) return@Canvas
+            val values = history.map { unitConverter(it) }
+            val yMax = maxOf(values.max(), limit) * 1.1
+            val yMin = 0.0
+            val w = size.width
+            val h = size.height
+            val stepX = w / (history.size - 1).coerceAtLeast(1)
+
+            // Linia limitu — kreska pozioma
+            val yLimit = (h - ((limit - yMin) / (yMax - yMin) * h).toFloat()).coerceIn(0f, h)
+            drawLine(
+                color = VerdictColors.Caution,
+                start = Offset(0f, yLimit),
+                end = Offset(w, yLimit),
+                strokeWidth = 1f,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f)),
+            )
+
+            // Krzywa wiatru
+            val path = Path()
+            values.forEachIndexed { i, v ->
+                val x = i * stepX
+                val y = (h - ((v - yMin) / (yMax - yMin) * h).toFloat()).coerceIn(0f, h)
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            drawPath(
+                path = path,
+                color = VerdictColors.Go,
+                style = Stroke(width = 3f),
+            )
         }
     }
 }

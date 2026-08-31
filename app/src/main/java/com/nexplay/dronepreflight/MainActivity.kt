@@ -107,6 +107,7 @@ class MainActivity : ComponentActivity() {
                         onDismiss = { flightModeActive = false },
                         onStartMonitor = { StormMonitorService.start(applicationContext) },
                         onStopMonitor = { StormMonitorService.stop(applicationContext) },
+                        onRefresh = { vm.refresh() },
                         onSaveFlight = { note, minutes -> vm.saveCurrentFlight(note, minutes) },
                     )
                 }
