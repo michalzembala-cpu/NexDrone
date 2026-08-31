@@ -45,8 +45,8 @@ class WindArrowsOverlay(
             val cx = screen.x.toFloat()
             val cy = screen.y.toFloat()
 
-            // Skala długości: min 20px, max 80px
-            val len = (p.windMs * 4.5f + 15f).coerceIn(20f, 90f)
+            // Skala długości: min 20px, max 90px
+            val len = (p.windMs.toFloat() * 4.5f + 15f).coerceIn(20f, 90f)
             // Kierunek w matematycznych radianach — meteo direction to skąd wieje,
             // strzałka pokazuje "gdzie leci", więc +180°.
             val angRad = Math.toRadians(p.dirDeg + 90.0) // +90 bo screen Y odwrócone
