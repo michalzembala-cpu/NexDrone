@@ -32,8 +32,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.nexplay.dronepreflight.data.AggregatedSnapshot
+import com.nexplay.dronepreflight.data.DisplayUnits
 import com.nexplay.dronepreflight.data.DroneLimits
 import com.nexplay.dronepreflight.data.FlightAssessment
+import com.nexplay.dronepreflight.ui.BestWindow
+import com.nexplay.dronepreflight.ui.HourlyOutlook
 import com.nexplay.dronepreflight.ui.theme.OpsColors
 
 @Composable
@@ -41,6 +44,9 @@ fun MapaScreen(
     snap: AggregatedSnapshot? = null,
     assessment: FlightAssessment? = null,
     limits: DroneLimits = DroneLimits(),
+    hourlyOutlook: List<HourlyOutlook> = emptyList(),
+    bestWindow: BestWindow? = null,
+    units: DisplayUnits = DisplayUnits(),
     pinnedCoords: Pair<Double, Double>? = null,
     onPin: (Double, Double) -> Unit = { _, _ -> },
     onClearPin: () -> Unit = {},
@@ -92,12 +98,26 @@ fun MapaScreen(
         ConditionsMapCard(
             snap = snap,
             assessment = assessment,
+            limits = limits,
             pinnedCoords = pinnedCoords,
             onPin = onPin,
             onClearPin = onClearPin,
             fullscreen = false,
             onToggleFullscreen = { fullscreen = true },
         )
+
+        // Panel analizy miejsca — pojawia się gdy pinezka jest postawiona
+        if (pinnedCoords != null && snap != null && assessment != null) {
+            SpotIntelligencePanel(
+                snap = snap,
+                assessment = assessment,
+                outlook = hourlyOutlook,
+                bestWindow = bestWindow,
+                units = units,
+                pinnedCoords = pinnedCoords,
+                onDismiss = onClearPin,
+            )
+        }
 
         // Główna karta z mapami
         Card(
