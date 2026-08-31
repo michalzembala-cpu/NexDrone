@@ -309,7 +309,7 @@ fun SettingsScreen(
             }
         }
         updateInfo?.let { info ->
-            UpdateAvailableDialog(info) { updateInfo = null }
+            UpdateAvailableDialog(info = info, onDismiss = { updateInfo = null })
         }
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))

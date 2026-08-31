@@ -26,6 +26,7 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import java.util.concurrent.TimeUnit
+import kotlin.math.max
 
 /** Skanuje pogodę godzinowo Open-Meteo, powiadamia gdy pojawi się okno GO w kolejnych 24h. */
 class GoWindowWorker(
@@ -75,15 +76,44 @@ class GoWindowWorker(
                 ),
             )
         }
+
+        // Alert "GO kończy się za X min" — gdy obecna godzina jest GO, a w ciągu 90 min pogorszenie
+        val currentVerdict = next24h.firstOrNull { it.first.toEpochMilliseconds() >= nowMs - 30 * 60 * 1000L }
+            ?.let { HourlyScorer.score(it.second, limits, null) }
+        if (currentVerdict == Verdict.GO) {
+            val firstBad = next24h.firstOrNull { (t, r) ->
+                val ms = t.toEpochMilliseconds()
+                ms > nowMs && ms - nowMs <= 90 * 60 * 1000L &&
+                    HourlyScorer.score(r, limits, null) != Verdict.GO
+            }
+            if (firstBad != null) {
+                val minutesLeft = max(0, ((firstBad.first.toEpochMilliseconds() - nowMs) / 60_000).toInt())
+                val badLocal = firstBad.first.toLocalDateTime(TimeZone.currentSystemDefault())
+                notify(
+                    channelId = "go_ending",
+                    channelName = "Koniec okna GO",
+                    notifId = 1002,
+                    title = "⏰ Okno GO kończy się za $minutesLeft min",
+                    text = "O ${"%02d:%02d".format(badLocal.hour, badLocal.minute)} warunki przestaną spełniać limity Twojego BSP.",
+                )
+            }
+        }
+
         return Result.success()
     }
 
-    private fun notify(title: String, text: String) {
+    private fun notify(
+        title: String,
+        text: String,
+        channelId: String = CHANNEL_ID,
+        channelName: String = "Okna GO",
+        notifId: Int = NOTIF_ID,
+    ) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Okna GO",
+                channelId,
+                channelName,
                 NotificationManager.IMPORTANCE_DEFAULT,
             ).apply { description = "Powiadamia o oknach dobrych warunków do lotu" }
             nm.createNotificationChannel(channel)
@@ -101,7 +131,7 @@ class GoWindowWorker(
             context, 0, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val n = NotificationCompat.Builder(context, CHANNEL_ID)
+        val n = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentTitle(title)
             .setContentText(text)
@@ -109,7 +139,7 @@ class GoWindowWorker(
             .setContentIntent(pi)
             .setAutoCancel(true)
             .build()
-        nm.notify(NOTIF_ID, n)
+        nm.notify(notifId, n)
     }
 
     companion object {

@@ -32,6 +32,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.Clock
+import kotlinx.datetime.toLocalDateTime
 
 /**
  * Foreground service pilnujący pogody w trakcie lotu.
@@ -42,6 +43,7 @@ class StormMonitorService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var loop: Job? = null
     private var lastVerdict: Verdict = Verdict.GO
+    private var endingSoonNotified: Boolean = false
 
     override fun onCreate() {
         super.onCreate()
@@ -124,6 +126,28 @@ class StormMonitorService : Service() {
             alerts += "Werdykt spadł z GO na ${verdictLabel(verdict)}."
         }
         lastVerdict = verdict
+
+        // KONIEC OKNA GO — jeśli teraz GO, ale w ciągu ~30-60 min prognoza pogorszy się
+        if (verdict == Verdict.GO && !endingSoonNotified) {
+            val firstBad = hourly.firstOrNull { (t, r) ->
+                val ms = t.toEpochMilliseconds()
+                ms > now && ms - now <= 90 * 60 * 1000L &&
+                    HourlyScorer.score(r, limits, null) != Verdict.GO
+            }
+            if (firstBad != null) {
+                val minutesLeft = ((firstBad.first.toEpochMilliseconds() - now) / 60_000).toInt()
+                if (minutesLeft <= 60) {
+                    alerts += "Twoje okno GO kończy się za $minutesLeft min (o ${
+                        firstBad.first.toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault()).run {
+                            "%02d:%02d".format(hour, minute)
+                        }
+                    })."
+                    endingSoonNotified = true
+                }
+            }
+        }
+        // Reset flag gdy GO wróci lub minie już alarmowany moment
+        if (verdict != Verdict.GO) endingSoonNotified = false
 
         // Aktualizuj on-going z krótkim status-em
         updateOngoing(
