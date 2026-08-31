@@ -24,6 +24,8 @@ import com.nexplay.dronepreflight.data.tempToC
 import com.nexplay.dronepreflight.data.windIn
 import com.nexplay.dronepreflight.data.windToMs
 import com.nexplay.dronepreflight.notify.TestNotifier
+import com.nexplay.dronepreflight.update.GithubUpdateChecker
+import com.nexplay.dronepreflight.update.UpdateAvailableDialog
 import com.nexplay.dronepreflight.ui.theme.DronePreflightTheme
 import com.nexplay.dronepreflight.ui.theme.OpsColors
 import com.nexplay.dronepreflight.ui.theme.VerdictColors
@@ -255,6 +257,59 @@ fun SettingsScreen(
                     modifier = Modifier.align(androidx.compose.ui.Alignment.CenterVertically),
                 )
             }
+        }
+
+        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+        // Sekcja: aktualizacja
+        Text("Aktualizacja apki", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Ręcznie sprawdź czy jest nowa wersja na GitHub. Apka i tak sprawdza sama przy każdym uruchomieniu.",
+            style = MaterialTheme.typography.bodySmall,
+            color = OpsColors.TextSecondary,
+        )
+        var updateChecking by remember { mutableStateOf(false) }
+        var updateInfo by remember { mutableStateOf<GithubUpdateChecker.UpdateInfo?>(null) }
+        var updateMsg by remember { mutableStateOf<String?>(null) }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            OutlinedButton(
+                enabled = !updateChecking,
+                onClick = {
+                    updateChecking = true
+                    updateMsg = null
+                    scope.launch {
+                        val res = GithubUpdateChecker.check(context)
+                        val info = res.getOrNull()
+                        updateChecking = false
+                        when {
+                            info == null -> updateMsg = "✗ Brak połączenia lub błąd GitHub"
+                            info.hasUpdate && info.downloadUrl != null -> updateInfo = info
+                            else -> updateMsg = "✓ Masz najnowszą (${info.currentVersion})"
+                        }
+                    }
+                },
+            ) {
+                if (updateChecking) {
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Sprawdzam…")
+                } else {
+                    Text("Sprawdź aktualizację")
+                }
+            }
+            updateMsg?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (it.startsWith("✓")) VerdictColors.Go else VerdictColors.NoGo,
+                )
+            }
+        }
+        updateInfo?.let { info ->
+            UpdateAvailableDialog(info) { updateInfo = null }
         }
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
