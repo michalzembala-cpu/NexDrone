@@ -36,15 +36,58 @@ fun FlightModeScreen(
     onDismiss: () -> Unit,
     onStartMonitor: () -> Unit,
     onStopMonitor: () -> Unit,
+    onSaveFlight: (note: String, minutes: Int?) -> Unit = { _, _ -> },
 ) {
     val startedAt = rememberSaveable { System.currentTimeMillis() }
     var elapsedMs by remember { mutableStateOf(0L) }
+    var showSummary by remember { mutableStateOf(false) }
+
+    // Post-flight sampling: co sekundę zliczaj werdykt + trackuj max/min
+    var goSecs by remember { mutableStateOf(0) }
+    var cautSecs by remember { mutableStateOf(0) }
+    var noGoSecs by remember { mutableStateOf(0) }
+    var maxWind by remember { mutableStateOf(0.0) }
+    var maxGust by remember { mutableStateOf(0.0) }
+    var minVis by remember { mutableStateOf(Double.MAX_VALUE) }
 
     LaunchedEffect(Unit) {
         while (true) {
             elapsedMs = System.currentTimeMillis() - startedAt
+            when (state.assessment?.overall) {
+                Verdict.GO -> goSecs++
+                Verdict.CAUTION -> cautSecs++
+                Verdict.NO_GO -> noGoSecs++
+                null -> {}
+            }
+            state.snapshot?.wind?.median?.let { if (it > maxWind) maxWind = it }
+            state.snapshot?.gust?.median?.let { if (it > maxGust) maxGust = it }
+            state.snapshot?.visibility?.median?.let { if (it < minVis) minVis = it }
             delay(1000)
         }
+    }
+
+    if (showSummary) {
+        FlightSummaryDialog(
+            elapsedMs = elapsedMs,
+            goSecs = goSecs,
+            cautSecs = cautSecs,
+            noGoSecs = noGoSecs,
+            maxWindMs = maxWind.takeIf { it > 0.0 },
+            maxGustMs = maxGust.takeIf { it > 0.0 },
+            minVisibilityM = minVis.takeIf { it < Double.MAX_VALUE },
+            units = units,
+            onSave = { note ->
+                val minutes = ((elapsedMs / 1000 / 60).toInt()).coerceAtLeast(1)
+                onSaveFlight(note, minutes)
+                showSummary = false
+                onDismiss()
+            },
+            onDismiss = {
+                showSummary = false
+                onDismiss()
+            },
+        )
+        return
     }
 
     Dialog(
@@ -135,7 +178,7 @@ fun FlightModeScreen(
                 )
 
                 Button(
-                    onClick = onDismiss,
+                    onClick = { showSummary = true },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = VerdictColors.NoGo),
                 ) {
@@ -267,5 +310,187 @@ private fun windColor(value: Double?, state: UiState): Color {
         value >= limit -> VerdictColors.NoGo
         value >= limit * 0.75 -> VerdictColors.Caution
         else -> VerdictColors.Go
+    }
+}
+
+// ── PODSUMOWANIE LOTU ──
+
+@Composable
+private fun FlightSummaryDialog(
+    elapsedMs: Long,
+    goSecs: Int,
+    cautSecs: Int,
+    noGoSecs: Int,
+    maxWindMs: Double?,
+    maxGustMs: Double?,
+    minVisibilityM: Double?,
+    units: DisplayUnits,
+    onSave: (note: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val secs = (elapsedMs / 1000).toInt()
+    val hh = secs / 3600
+    val mm = (secs % 3600) / 60
+    val ss = secs % 60
+    val durText = if (hh > 0) "%d:%02d:%02d".format(hh, mm, ss) else "%d:%02d".format(mm, ss)
+
+    val total = (goSecs + cautSecs + noGoSecs).coerceAtLeast(1)
+    val goPct = (goSecs * 100f / total).toInt()
+    val cautPct = (cautSecs * 100f / total).toInt()
+    val noGoPct = (noGoSecs * 100f / total).toInt()
+
+    var note by remember { mutableStateOf("") }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+        ),
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .padding(16.dp),
+        ) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(top = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    "LOT ZAKOŃCZONY",
+                    color = VerdictColors.Go,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    durText,
+                    color = OpsColors.TextPrimary,
+                    fontSize = 56.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    "Czas trwania lotu",
+                    color = OpsColors.TextSecondary,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+
+                Spacer(Modifier.height(4.dp))
+                HorizontalDivider(color = OpsColors.Grid)
+                Spacer(Modifier.height(4.dp))
+
+                // Max/min metryki
+                SummaryRow("MAX WIATR", maxWindMs?.let { "%.1f %s".format(it.windIn(units.wind), units.wind.short) } ?: "brak danych")
+                SummaryRow("MAX PORYWY", maxGustMs?.let { "%.1f %s".format(it.windIn(units.wind), units.wind.short) } ?: "brak danych")
+                SummaryRow(
+                    "MIN WIDOCZ.",
+                    minVisibilityM?.let {
+                        if (it >= 10000) "%.0f km".format(it / 1000) else "%.1f km".format(it / 1000)
+                    } ?: "brak danych",
+                )
+
+                Spacer(Modifier.height(4.dp))
+                HorizontalDivider(color = OpsColors.Grid)
+                Spacer(Modifier.height(4.dp))
+
+                Text(
+                    "ROZKŁAD WARUNKÓW",
+                    color = OpsColors.TextSecondary,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+
+                VerdictBar("GO", goPct, VerdictColors.Go)
+                VerdictBar("OSTROŻNIE", cautPct, VerdictColors.Caution)
+                VerdictBar("NO-GO", noGoPct, VerdictColors.NoGo)
+
+                Spacer(Modifier.height(4.dp))
+                HorizontalDivider(color = OpsColors.Grid)
+                Spacer(Modifier.height(4.dp))
+
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    label = { Text("Notatka (opcjonalnie)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = false,
+                    maxLines = 3,
+                )
+
+                Spacer(Modifier.weight(1f))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f).height(52.dp),
+                    ) { Text("Nie zapisuj") }
+                    Button(
+                        onClick = { onSave(note) },
+                        modifier = Modifier.weight(1f).height(52.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = VerdictColors.Go),
+                    ) { Text("Zapisz w historii", fontWeight = FontWeight.Bold) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryRow(label: String, value: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            label,
+            color = OpsColors.TextSecondary,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.width(140.dp),
+        )
+        Text(
+            value,
+            color = OpsColors.TextPrimary,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+@Composable
+private fun VerdictBar(label: String, percent: Int, color: Color) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                label,
+                color = OpsColors.TextPrimary,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.width(100.dp),
+            )
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(14.dp)
+                    .background(OpsColors.BgPanel, RoundedCornerShape(4.dp)),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(percent / 100f)
+                        .background(color, RoundedCornerShape(4.dp)),
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(
+                "$percent%",
+                color = color,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.width(40.dp),
+            )
+        }
+        Spacer(Modifier.height(4.dp))
     }
 }
