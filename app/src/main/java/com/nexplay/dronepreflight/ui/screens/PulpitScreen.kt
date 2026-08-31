@@ -30,6 +30,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
 import com.nexplay.dronepreflight.data.AggregatedSnapshot
 import com.nexplay.dronepreflight.data.ConditionCheck
 import com.nexplay.dronepreflight.data.ConfidenceCalculator
@@ -38,6 +42,10 @@ import com.nexplay.dronepreflight.data.Verdict
 import com.nexplay.dronepreflight.data.formatWind
 import com.nexplay.dronepreflight.data.tempIn
 import com.nexplay.dronepreflight.data.windIn
+import com.nexplay.dronepreflight.pdf.PreFlightBriefingPdf
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.nexplay.dronepreflight.data.sources.kp.KpReading
 import com.nexplay.dronepreflight.ui.AllChecklistIds
 import com.nexplay.dronepreflight.ui.BestWindow
@@ -108,6 +116,7 @@ fun PulpitScreen(
                 enabled = state.assessment?.overall != Verdict.NO_GO,
                 onClick = onStartFlight,
             )
+            BriefingButton(state, units)
         } else if (!state.loading) {
             EmptyState(onRefresh)
         }
@@ -887,6 +896,79 @@ private fun MonitoringCard(active: Boolean, onStart: () -> Unit, onStop: () -> U
                 ) { Text("Rozpocznij monitoring") }
             }
         }
+    }
+}
+
+@Composable
+private fun BriefingButton(state: UiState, units: com.nexplay.dronepreflight.data.DisplayUnits) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var generating by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf<String?>(null) }
+
+    OutlinedButton(
+        onClick = {
+            val snap = state.snapshot ?: return@OutlinedButton
+            val assessment = state.assessment ?: return@OutlinedButton
+            generating = true
+            status = null
+            scope.launch {
+                try {
+                    val uri = withContext(Dispatchers.IO) {
+                        val bestWinText = state.bestWindow?.let { bw ->
+                            "%02d:00 – %02d:00 (%d h)".format(
+                                bw.startLocal.hour,
+                                (bw.endLocal.hour + 1) % 24,
+                                bw.hours,
+                            )
+                        }
+                        val profile = state.droneProfiles.firstOrNull { it.id == state.activeProfileId }
+                        PreFlightBriefingPdf.export(
+                            context = context,
+                            snap = snap,
+                            assessment = assessment,
+                            limits = state.limits,
+                            activeProfile = profile,
+                            units = units,
+                            checklistDone = state.checked.intersect(AllChecklistIds).size,
+                            checklistTotal = AllChecklistIds.size,
+                            bestWindowText = bestWinText,
+                        )
+                    }
+                    val share = Intent(Intent.ACTION_SEND).apply {
+                        type = "application/pdf"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(Intent.createChooser(share, "Briefing PDF"))
+                    status = "✓ PDF wygenerowany"
+                } catch (e: Exception) {
+                    status = "✗ Błąd: ${e.message?.take(60)}"
+                } finally {
+                    generating = false
+                }
+            }
+        },
+        enabled = !generating && state.snapshot != null && state.assessment != null,
+        modifier = Modifier.fillMaxWidth().height(52.dp),
+    ) {
+        if (generating) {
+            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            Spacer(Modifier.width(10.dp))
+            Text("Generuję briefing…")
+        } else {
+            Icon(Icons.Default.PictureAsPdf, contentDescription = null)
+            Spacer(Modifier.width(10.dp))
+            Text("Wygeneruj briefing PDF", style = MaterialTheme.typography.titleMedium)
+        }
+    }
+    status?.let {
+        Text(
+            it,
+            color = if (it.startsWith("✓")) VerdictColors.Go else VerdictColors.NoGo,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
 

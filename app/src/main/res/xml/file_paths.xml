@@ -2,5 +2,6 @@
 <paths>
     <external-files-path name="flight-logs" path="flight-logs/" />
     <external-files-path name="backups" path="backups/" />
+    <external-files-path name="briefings" path="briefings/" />
     <external-files-path name="update-download" path="Download/" />
 </paths>
