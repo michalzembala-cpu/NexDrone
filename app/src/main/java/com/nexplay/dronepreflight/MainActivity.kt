@@ -35,6 +35,7 @@ import com.nexplay.dronepreflight.update.UpdateAvailableDialog
 import com.nexplay.dronepreflight.ui.PreflightViewModel
 import com.nexplay.dronepreflight.ui.screens.ChecklistScreen
 import com.nexplay.dronepreflight.ui.screens.DashboardScreen
+import com.nexplay.dronepreflight.ui.screens.FlightModeScreen
 import com.nexplay.dronepreflight.ui.screens.HistoryScreen
 import com.nexplay.dronepreflight.ui.screens.MapaScreen
 import com.nexplay.dronepreflight.ui.screens.OnboardingScreen
@@ -88,6 +89,25 @@ class MainActivity : ComponentActivity() {
                 }
                 updateInfo?.let { info ->
                     UpdateAvailableDialog(info) { updateInfo = null }
+                }
+
+                // Auto-schedule GO window worker on startup if enabled — naprawia
+                // sytuację, gdy worker padł po reinstalce apki albo restart telefonu.
+                LaunchedEffect(state.notificationsEnabled) {
+                    if (state.notificationsEnabled) {
+                        GoWindowWorker.schedule(applicationContext)
+                    }
+                }
+
+                var flightModeActive by rememberSaveable { mutableStateOf(false) }
+                if (flightModeActive) {
+                    FlightModeScreen(
+                        state = state,
+                        units = state.units,
+                        onDismiss = { flightModeActive = false },
+                        onStartMonitor = { StormMonitorService.start(applicationContext) },
+                        onStopMonitor = { StormMonitorService.stop(applicationContext) },
+                    )
                 }
 
                 val pagerState = rememberPagerState(
@@ -149,6 +169,7 @@ class MainActivity : ComponentActivity() {
                                 onDateSelected = vm::setSelectedDate,
                                 onStartMonitor = { StormMonitorService.start(applicationContext) },
                                 onStopMonitor = { StormMonitorService.stop(applicationContext) },
+                                onStartFlight = { flightModeActive = true },
                                 units = state.units,
                             )
                             Tab.Kalendarz -> DashboardScreen(

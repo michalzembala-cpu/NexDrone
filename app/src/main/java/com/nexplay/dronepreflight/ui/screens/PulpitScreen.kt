@@ -59,6 +59,7 @@ fun PulpitScreen(
     onDateSelected: (LocalDate) -> Unit = {},
     onStartMonitor: () -> Unit = {},
     onStopMonitor: () -> Unit = {},
+    onStartFlight: () -> Unit = {},
     units: com.nexplay.dronepreflight.data.DisplayUnits = com.nexplay.dronepreflight.data.DisplayUnits(),
 ) {
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
@@ -101,6 +102,10 @@ fun PulpitScreen(
                 active = state.monitoringActive,
                 onStart = onStartMonitor,
                 onStop = onStopMonitor,
+            )
+            StartFlightButton(
+                enabled = state.assessment?.overall != Verdict.NO_GO,
+                onClick = onStartFlight,
             )
         } else if (!state.loading) {
             EmptyState(onRefresh)
@@ -881,6 +886,26 @@ private fun MonitoringCard(active: Boolean, onStart: () -> Unit, onStop: () -> U
                 ) { Text("Rozpocznij monitoring") }
             }
         }
+    }
+}
+
+@Composable
+private fun StartFlightButton(enabled: Boolean, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().height(64.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = VerdictColors.Go,
+            disabledContainerColor = OpsColors.BgPanel,
+            disabledContentColor = OpsColors.TextSecondary,
+        ),
+    ) {
+        Text(
+            if (enabled) "START LOTU" else "NO-GO — nie lataj",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 

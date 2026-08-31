@@ -23,9 +23,11 @@ import com.nexplay.dronepreflight.data.tempIn
 import com.nexplay.dronepreflight.data.tempToC
 import com.nexplay.dronepreflight.data.windIn
 import com.nexplay.dronepreflight.data.windToMs
+import com.nexplay.dronepreflight.notify.TestNotifier
 import com.nexplay.dronepreflight.ui.theme.DronePreflightTheme
 import com.nexplay.dronepreflight.ui.theme.OpsColors
 import com.nexplay.dronepreflight.ui.theme.VerdictColors
+import android.provider.Settings as AndroidSettings
 import kotlinx.coroutines.launch
 
 @Composable
@@ -202,6 +204,57 @@ fun SettingsScreen(
                 )
             }
             Switch(checked = notificationsEnabled, onCheckedChange = onToggleNotifications)
+        }
+
+        // Status pozwolenia systemowego + test
+        var testStatus by remember { mutableStateOf<String?>(null) }
+        val hasNotifPerm = remember { TestNotifier.hasPermission(context) }
+        if (!hasNotifPerm) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = VerdictColors.NoGo.copy(alpha = 0.15f)),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) {
+                Column(Modifier.padding(12.dp)) {
+                    Text(
+                        "⚠ Powiadomienia zablokowane systemowo",
+                        color = VerdictColors.NoGo,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    Text(
+                        "Android nie zezwala apce na wysyłanie powiadomień. Kliknij niżej, żeby włączyć w ustawieniach systemu.",
+                        color = OpsColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedButton(onClick = {
+                        val intent = Intent(AndroidSettings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                            putExtra(AndroidSettings.EXTRA_APP_PACKAGE, context.packageName)
+                        }
+                        context.startActivity(intent)
+                    }) { Text("Otwórz ustawienia systemowe") }
+                }
+            }
+        }
+        Row(
+            Modifier.padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedButton(onClick = {
+                testStatus = when (val r = TestNotifier.send(context)) {
+                    TestNotifier.Result.Success -> "✓ Wysłane — sprawdź pasek powiadomień"
+                    TestNotifier.Result.PermissionMissing -> "✗ Brak pozwolenia POST_NOTIFICATIONS"
+                    TestNotifier.Result.ChannelDisabled -> "✗ Powiadomienia wyłączone w systemie"
+                    is TestNotifier.Result.Error -> "✗ Błąd: ${r.message}"
+                }
+            }) { Text("Wyślij test") }
+            testStatus?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (it.startsWith("✓")) VerdictColors.Go else VerdictColors.NoGo,
+                    modifier = Modifier.align(androidx.compose.ui.Alignment.CenterVertically),
+                )
+            }
         }
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
