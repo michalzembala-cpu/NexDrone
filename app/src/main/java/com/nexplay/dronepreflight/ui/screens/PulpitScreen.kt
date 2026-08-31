@@ -31,7 +31,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nexplay.dronepreflight.data.AggregatedSnapshot
+import com.nexplay.dronepreflight.data.ConditionCheck
+import com.nexplay.dronepreflight.data.ConfidenceCalculator
+import com.nexplay.dronepreflight.data.DisplayUnits
 import com.nexplay.dronepreflight.data.Verdict
+import com.nexplay.dronepreflight.data.formatWind
 import com.nexplay.dronepreflight.data.tempIn
 import com.nexplay.dronepreflight.data.windIn
 import com.nexplay.dronepreflight.data.sources.kp.KpReading
@@ -83,7 +87,10 @@ fun PulpitScreen(
         if (state.snapshot != null) {
             WeatherMedianCard(state.snapshot, units)
             KpMedianCard(state.snapshot)
-            VerdictCard(state)
+            VerdictCard(state, units)
+            if (state.hourlyOutlook.isNotEmpty()) {
+                Next3HoursCard(state.hourlyOutlook, units)
+            }
             BestTimeCard(state.bestWindow, state.hourlyOutlook)
             if (state.hourlyOutlook.isNotEmpty()) {
                 HourlyChartCard(state.hourlyOutlook, state.limits, units)
@@ -407,42 +414,188 @@ private fun KpGauge(value: Double, modifier: Modifier = Modifier) {
     }
 }
 
-// ── Karta OCENA ──
+// ── Karta OCENA (rozbudowana: WHY? + Confidence) ──
 
 @Composable
-private fun VerdictCard(state: UiState) {
-    val overall = state.assessment?.overall
+private fun VerdictCard(state: UiState, units: DisplayUnits) {
+    val assessment = state.assessment ?: return
+    val overall = assessment.overall
     val (label, color, sub) = when (overall) {
         Verdict.GO -> Triple("GO", VerdictColors.Go, "Warunki dobre do lotu")
-        Verdict.CAUTION -> Triple("OSTROŻNIE", VerdictColors.Caution, "Zwróć uwagę na parametry poniżej limitu")
+        Verdict.CAUTION -> Triple("OSTROŻNIE", VerdictColors.Caution, "Warunki graniczne — sprawdź szczegóły")
         Verdict.NO_GO -> Triple("NO-GO", VerdictColors.NoGo, "Nie lataj — warunki poza limitami")
-        null -> Triple("—", OpsColors.TextSecondary, "Brak oceny")
     }
+    val confidence = state.snapshot?.let { ConfidenceCalculator.calculate(it) }
+    val problems = assessment.checks.filter { it.verdict != Verdict.GO }
+    val allOk = assessment.checks.filter { it.verdict == Verdict.GO }
+
     OpsCard {
         Column(Modifier.padding(16.dp)) {
             CardHeader("OCENA DLA TWOJEGO BSP")
             Spacer(Modifier.height(10.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(label, color = color, style = MaterialTheme.typography.displaySmall)
+                    Text(sub, color = OpsColors.TextSecondary, style = MaterialTheme.typography.bodyMedium)
+                }
+                confidence?.let { c ->
+                    ConfidenceBadge(c)
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+            HorizontalDivider(color = OpsColors.Grid)
+            Spacer(Modifier.height(12.dp))
+
+            Text(
+                "DLACZEGO ${label}?",
+                color = OpsColors.TextSecondary,
+                style = MaterialTheme.typography.labelMedium,
+            )
+            Spacer(Modifier.height(8.dp))
+
+            if (problems.isNotEmpty()) {
+                problems.forEach { CheckDetailRow(it) }
+                if (allOk.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "✓ Bez zastrzeżeń: " + allOk.joinToString(", ") { it.label.lowercase() },
+                        color = OpsColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+            } else {
+                allOk.forEach { CheckDetailRow(it) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConfidenceBadge(c: ConfidenceCalculator.Confidence) {
+    val col = when {
+        c.percent >= 85 -> VerdictColors.Go
+        c.percent >= 60 -> VerdictColors.Caution
+        else -> VerdictColors.NoGo
+    }
+    Column(horizontalAlignment = Alignment.End) {
+        Text("PEWNOŚĆ", color = OpsColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
+        Text(
+            "${c.percent}%",
+            color = col,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+        )
+        Box(
+            Modifier
+                .background(col.copy(alpha = 0.18f), MaterialTheme.shapes.small)
+                .padding(horizontal = 8.dp, vertical = 2.dp)
+        ) {
+            Text(c.label, color = col, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun CheckDetailRow(check: ConditionCheck) {
+    val rowColor = when (check.verdict) {
+        Verdict.GO -> VerdictColors.Go
+        Verdict.CAUTION -> VerdictColors.Caution
+        Verdict.NO_GO -> VerdictColors.NoGo
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(10.dp).background(rowColor, RoundedCornerShape(5.dp)))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    label,
-                    color = color,
-                    style = MaterialTheme.typography.displaySmall,
+                    check.label,
+                    color = OpsColors.TextPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
                 )
-                Spacer(Modifier.width(12.dp))
-                if (overall == Verdict.GO) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = VerdictColors.Go,
-                        modifier = Modifier.size(36.dp),
+                Text(
+                    check.value,
+                    color = rowColor,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            check.note?.let {
+                Text(it, color = OpsColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
+
+// ── Karta NAJBLIŻSZE 3H ──
+
+@Composable
+private fun Next3HoursCard(outlook: List<HourlyOutlook>, units: DisplayUnits) {
+    val next = outlook.take(4)
+    if (next.isEmpty()) return
+    OpsCard {
+        Column(Modifier.padding(16.dp)) {
+            CardHeader("NAJBLIŻSZE GODZINY")
+            Spacer(Modifier.height(10.dp))
+            next.forEachIndexed { i, hour ->
+                val vColor = when (hour.verdict) {
+                    Verdict.GO -> VerdictColors.Go
+                    Verdict.CAUTION -> VerdictColors.Caution
+                    Verdict.NO_GO -> VerdictColors.NoGo
+                }
+                val vLabel = when (hour.verdict) {
+                    Verdict.GO -> "GO"
+                    Verdict.CAUTION -> "OSTROŻNIE"
+                    Verdict.NO_GO -> "NO-GO"
+                }
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        if (i == 0) "TERAZ" else "+${i}h",
+                        color = OpsColors.TextSecondary,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(56.dp),
+                    )
+                    Text(
+                        "%02d:00".format(hour.timeLocal.hour),
+                        color = OpsColors.TextPrimary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.width(56.dp),
+                    )
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .background(vColor.copy(alpha = 0.18f), MaterialTheme.shapes.small)
+                            .padding(horizontal = 10.dp, vertical = 3.dp),
+                    ) {
+                        Text(
+                            vLabel,
+                            color = vColor,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        hour.windMs?.let { formatWind(it, units.wind) } ?: "—",
+                        color = OpsColors.TextPrimary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.width(70.dp),
                     )
                 }
             }
-            Text(
-                sub,
-                color = OpsColors.TextSecondary,
-                style = MaterialTheme.typography.bodyMedium,
-            )
         }
     }
 }
