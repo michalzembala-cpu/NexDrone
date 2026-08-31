@@ -28,6 +28,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.nexplay.dronepreflight.data.SettingsStore
 import com.nexplay.dronepreflight.monitor.StormMonitorService
 import com.nexplay.dronepreflight.notify.GoWindowWorker
 import com.nexplay.dronepreflight.update.GithubUpdateChecker
@@ -42,6 +43,7 @@ import com.nexplay.dronepreflight.ui.screens.OnboardingScreen
 import com.nexplay.dronepreflight.ui.screens.PulpitScreen
 import com.nexplay.dronepreflight.ui.screens.SettingsScreen
 import com.nexplay.dronepreflight.ui.theme.DronePreflightTheme
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 private enum class Tab(val label: String, val icon: ImageVector) {
@@ -74,21 +76,41 @@ class MainActivity : ComponentActivity() {
                     return@DronePreflightTheme
                 }
 
-                // Check for updates on app start (once per session)
+                // Check for updates on app start (once per session).
+                // Throttle: sprawdzaj max raz na godzinę.
+                // Dismiss-memory: jeśli user odrzucił konkretną wersję → nie pokazuj więcej.
                 var updateInfo by remember { mutableStateOf<GithubUpdateChecker.UpdateInfo?>(null) }
                 var updateChecked by rememberSaveable { mutableStateOf(false) }
+                val scopeUpdate = rememberCoroutineScope()
                 LaunchedEffect(Unit) {
-                    if (!updateChecked) {
-                        updateChecked = true
-                        val res = GithubUpdateChecker.check(applicationContext)
-                        val info = res.getOrNull()
-                        if (info != null && info.hasUpdate && info.downloadUrl != null) {
-                            updateInfo = info
-                        }
+                    if (updateChecked) return@LaunchedEffect
+                    updateChecked = true
+                    val settings = SettingsStore(applicationContext)
+                    val lastCheck = settings.lastUpdateCheckAt.first()
+                    val now = System.currentTimeMillis()
+                    val throttleMs = 60 * 60 * 1000L  // 1h
+                    if (now - lastCheck < throttleMs) return@LaunchedEffect
+
+                    val res = GithubUpdateChecker.check(applicationContext)
+                    val info = res.getOrNull() ?: return@LaunchedEffect
+                    settings.setLastUpdateCheckAt(now)
+
+                    val dismissed = settings.dismissedUpdateVersion.first()
+                    if (info.hasUpdate && info.downloadUrl != null && info.latestVersion != dismissed) {
+                        updateInfo = info
                     }
                 }
                 updateInfo?.let { info ->
-                    UpdateAvailableDialog(info) { updateInfo = null }
+                    UpdateAvailableDialog(
+                        info = info,
+                        onDismiss = { updateInfo = null },
+                        onDismissForever = {
+                            scopeUpdate.launch {
+                                SettingsStore(applicationContext).setDismissedUpdateVersion(info.latestVersion)
+                            }
+                            updateInfo = null
+                        },
+                    )
                 }
 
                 // Auto-schedule GO window worker on startup if enabled — naprawia

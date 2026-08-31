@@ -41,6 +41,21 @@ class SettingsStore(private val context: Context) {
         val WKp = stringPreferencesKey("w_kp")                      // "3.0" lub "—"
         val WLocation = stringPreferencesKey("w_location")
         val WUpdatedAt = longPreferencesKey("w_updated_at")
+        // Auto-update dialog throttle + dismiss-memory
+        val LastUpdateCheckAt = longPreferencesKey("update_check_at")
+        val DismissedUpdateVersion = stringPreferencesKey("update_dismissed_ver")
+    }
+
+    // ── Auto-update dialog ──
+
+    val lastUpdateCheckAt: Flow<Long> = context.dataStore.data.map { it[Keys.LastUpdateCheckAt] ?: 0L }
+    suspend fun setLastUpdateCheckAt(ms: Long) {
+        context.dataStore.edit { it[Keys.LastUpdateCheckAt] = ms }
+    }
+
+    val dismissedUpdateVersion: Flow<String> = context.dataStore.data.map { it[Keys.DismissedUpdateVersion] ?: "" }
+    suspend fun setDismissedUpdateVersion(v: String) {
+        context.dataStore.edit { it[Keys.DismissedUpdateVersion] = v }
     }
 
     /**

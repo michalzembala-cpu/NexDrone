@@ -22,6 +22,7 @@ import com.nexplay.dronepreflight.ui.theme.OpsColors
 fun UpdateAvailableDialog(
     info: GithubUpdateChecker.UpdateInfo,
     onDismiss: () -> Unit,
+    onDismissForever: () -> Unit = onDismiss,
 ) {
     val context = LocalContext.current
     var status by remember { mutableStateOf<String?>(null) }
@@ -69,7 +70,12 @@ fun UpdateAvailableDialog(
             ) { Text("Pobierz i zainstaluj") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Później") }
+            Row {
+                TextButton(onClick = onDismissForever) {
+                    Text("Pomiń tę wersję", color = OpsColors.TextSecondary)
+                }
+                TextButton(onClick = onDismiss) { Text("Później") }
+            }
         },
     )
 }
