@@ -182,6 +182,7 @@ class MainActivity : ComponentActivity() {
                             Tab.Mapa -> MapaScreen(
                                 snap = state.snapshot,
                                 assessment = state.assessment,
+                                limits = state.limits,
                                 pinnedCoords = state.pinnedCoords,
                                 onPin = { lat, lon -> vm.setPinnedLocation(lat, lon) },
                                 onClearPin = { vm.clearPinnedLocation() },

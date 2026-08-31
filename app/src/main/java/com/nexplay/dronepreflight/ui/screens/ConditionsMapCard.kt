@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
@@ -37,11 +38,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.runtime.rememberCoroutineScope
 import com.nexplay.dronepreflight.data.AggregatedSnapshot
+import com.nexplay.dronepreflight.data.DroneLimits
 import com.nexplay.dronepreflight.data.FlightAssessment
 import com.nexplay.dronepreflight.data.Verdict
+import com.nexplay.dronepreflight.data.WindGridFetcher
+import com.nexplay.dronepreflight.data.WindPoint
 import com.nexplay.dronepreflight.ui.theme.OpsColors
 import com.nexplay.dronepreflight.ui.theme.VerdictColors
+import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -61,6 +67,7 @@ import kotlin.math.sin
 fun ConditionsMapCard(
     snap: AggregatedSnapshot?,
     assessment: FlightAssessment?,
+    limits: DroneLimits = DroneLimits(),
     pinnedCoords: Pair<Double, Double>? = null,
     onPin: (Double, Double) -> Unit = { _, _ -> },
     onClearPin: () -> Unit = {},
@@ -87,6 +94,12 @@ fun ConditionsMapCard(
     }
 
     var tapCoords by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    var showWindGrid by remember { mutableStateOf(false) }
+    var loadingWind by remember { mutableStateOf(false) }
+    var windPoints by remember { mutableStateOf<List<WindPoint>>(emptyList()) }
+    val scope = rememberCoroutineScope()
+    val centerLat = pinnedCoords?.first ?: snap.latitude
+    val centerLon = pinnedCoords?.second ?: snap.longitude
 
     // Trzymamy jedną instancję MapView przez cały czas życia
     val mapView = remember {
@@ -148,6 +161,26 @@ fun ConditionsMapCard(
         pinnedCoords?.let { (lat, lon) ->
             mapView.addConditionCircle(lat, lon, 0.4, Color.White)
             mapView.addConditionCircle(lat, lon, 0.2, verdictColor)
+        }
+        mapView.invalidate()
+    }
+
+    // Toggle strzałek wiatru — pobiera 3x3 siatkę z Open-Meteo
+    LaunchedEffect(showWindGrid, centerLat, centerLon) {
+        mapView.overlays.removeAll { it is WindArrowsOverlay }
+        if (showWindGrid) {
+            loadingWind = true
+            runCatching { WindGridFetcher.fetch(centerLat, centerLon) }
+                .onSuccess { points ->
+                    windPoints = points
+                    if (points.isNotEmpty()) {
+                        mapView.overlays.add(WindArrowsOverlay(points, limits))
+                    }
+                }
+                .onFailure { android.util.Log.e("WindGrid", "fetch failed", it) }
+            loadingWind = false
+        } else {
+            windPoints = emptyList()
         }
         mapView.invalidate()
     }
@@ -230,6 +263,19 @@ fun ConditionsMapCard(
                         Icon(Icons.Default.Remove, contentDescription = "Zoom out", tint = OpsColors.TextPrimary)
                     }
                     FilledIconButton(
+                        onClick = { showWindGrid = !showWindGrid },
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = if (showWindGrid) OpsColors.Accent
+                                else OpsColors.BgBase.copy(alpha = 0.9f),
+                        ),
+                    ) {
+                        Icon(
+                            Icons.Default.Air,
+                            contentDescription = "Strzałki wiatru",
+                            tint = if (showWindGrid) OpsColors.BgBase else OpsColors.TextPrimary,
+                        )
+                    }
+                    FilledIconButton(
                         onClick = {
                             mapView.controller.animateTo(GeoPoint(snap.latitude, snap.longitude))
                             mapView.controller.setZoom(11.0)
@@ -249,6 +295,26 @@ fun ConditionsMapCard(
                         ) {
                             Icon(Icons.Default.Close, contentDescription = "Usuń pinezke", tint = Color.White)
                         }
+                    }
+                }
+
+                // Banner strzałek wiatru
+                if (showWindGrid) {
+                    Row(
+                        Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(bottom = 12.dp, end = 12.dp)
+                            .background(OpsColors.BgBase.copy(alpha = 0.9f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Default.Air, contentDescription = null, tint = OpsColors.Accent, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            if (loadingWind) "Ładuję siatkę 3×3…" else "SIATKA WIATRU · ${windPoints.size} pkt",
+                            color = OpsColors.TextPrimary,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
                     }
                 }
 

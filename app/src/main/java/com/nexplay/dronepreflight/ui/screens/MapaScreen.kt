@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.nexplay.dronepreflight.data.AggregatedSnapshot
+import com.nexplay.dronepreflight.data.DroneLimits
 import com.nexplay.dronepreflight.data.FlightAssessment
 import com.nexplay.dronepreflight.ui.theme.OpsColors
 
@@ -39,6 +40,7 @@ import com.nexplay.dronepreflight.ui.theme.OpsColors
 fun MapaScreen(
     snap: AggregatedSnapshot? = null,
     assessment: FlightAssessment? = null,
+    limits: DroneLimits = DroneLimits(),
     pinnedCoords: Pair<Double, Double>? = null,
     onPin: (Double, Double) -> Unit = { _, _ -> },
     onClearPin: () -> Unit = {},
@@ -54,6 +56,7 @@ fun MapaScreen(
             ConditionsMapCard(
                 snap = snap,
                 assessment = assessment,
+                limits = limits,
                 pinnedCoords = pinnedCoords,
                 onPin = onPin,
                 onClearPin = onClearPin,
