@@ -16,10 +16,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.text.style.TextOverflow
 import com.nexplay.dronepreflight.data.DisplayUnits
+import com.nexplay.dronepreflight.data.TempUnit
 import com.nexplay.dronepreflight.data.Verdict
-import com.nexplay.dronepreflight.data.formatTemp
-import com.nexplay.dronepreflight.data.formatWind
+import com.nexplay.dronepreflight.data.WindUnit
+import com.nexplay.dronepreflight.data.tempIn
+import com.nexplay.dronepreflight.data.windIn
 import com.nexplay.dronepreflight.data.windDirectionCardinal
 import com.nexplay.dronepreflight.ui.UiState
 import com.nexplay.dronepreflight.ui.theme.OpsColors
@@ -74,20 +77,25 @@ fun FlightModeScreen(
                     return@Column
                 }
 
+                val windUnitStr = units.wind.short
+                val tempUnitStr = units.temp.short
+
                 Row(
                     Modifier.fillMaxWidth().weight(1f),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     BigMetric(
                         label = "WIATR",
-                        value = snap.wind.median?.let { formatWind(it, units.wind) } ?: "—",
+                        value = snap.wind.median?.let { "%.1f".format(it.windIn(units.wind)) } ?: "—",
+                        unit = windUnitStr,
                         sub = windDirectionCardinal(snap.windDir.median),
                         color = windColor(snap.wind.median, state),
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                     )
                     BigMetric(
                         label = "PORYWY",
-                        value = snap.gust.median?.let { formatWind(it, units.wind) } ?: "—",
+                        value = snap.gust.median?.let { "%.1f".format(it.windIn(units.wind)) } ?: "—",
+                        unit = windUnitStr,
                         sub = "max 3s",
                         color = windColor(snap.gust.median, state),
                         modifier = Modifier.weight(1f).fillMaxHeight(),
@@ -100,19 +108,22 @@ fun FlightModeScreen(
                 ) {
                     BigMetric(
                         label = "TEMP",
-                        value = formatTemp(snap.temp.median, units.temp),
+                        value = snap.temp.median?.let { "%.1f".format(it.tempIn(units.temp)) } ?: "—",
+                        unit = tempUnitStr,
                         sub = "med. z ${snap.temp.count} źr.",
                         color = OpsColors.Accent,
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                     )
+                    val vis = snap.visibility.median
                     BigMetric(
                         label = "WIDOCZ.",
-                        value = snap.visibility.median?.let {
-                            if (it >= 10000) "%.0f km".format(it / 1000)
-                            else "%.1f km".format(it / 1000)
+                        value = vis?.let {
+                            if (it >= 10000) "%.0f".format(it / 1000)
+                            else "%.1f".format(it / 1000)
                         } ?: "—",
+                        unit = "km",
                         sub = "VLOS",
-                        color = if ((snap.visibility.median ?: 10_000.0) < 2000) VerdictColors.Caution else OpsColors.Accent,
+                        color = if ((vis ?: 10_000.0) < 2000) VerdictColors.Caution else OpsColors.Accent,
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                     )
                 }
@@ -181,6 +192,7 @@ private fun FlightHeader(state: UiState, elapsedMs: Long, onDismiss: () -> Unit)
 private fun BigMetric(
     label: String,
     value: String,
+    unit: String,
     sub: String,
     color: Color,
     modifier: Modifier = Modifier,
@@ -188,16 +200,31 @@ private fun BigMetric(
     Box(
         modifier
             .background(OpsColors.BgPanel, RoundedCornerShape(12.dp))
-            .padding(16.dp),
+            .padding(14.dp),
     ) {
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
             Text(label, color = OpsColors.TextSecondary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-            Text(
-                value,
-                color = color,
-                fontSize = 48.sp,
-                fontWeight = FontWeight.Bold,
-            )
+            Row(
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                Text(
+                    value,
+                    color = color,
+                    fontSize = 44.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Visible,
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    unit,
+                    color = color,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 6.dp),
+                )
+            }
             Text(sub, color = OpsColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
         }
     }
