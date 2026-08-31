@@ -88,6 +88,7 @@ fun PulpitScreen(
         if (state.snapshot != null) {
             WeatherMedianCard(state.snapshot, units)
             KpMedianCard(state.snapshot)
+            DataSourcesCard(state.snapshot, units)
             VerdictCard(state, units)
             if (state.hourlyOutlook.isNotEmpty()) {
                 Next3HoursCard(state.hourlyOutlook, units)
