@@ -35,7 +35,12 @@ Zwracasz się po imieniu jeśli podane. Bez emoji, bez markdownu — będzie czy
 Jeśli pytanie nie dotyczy drona/pogody — odpowiedz krótko i wróć do tematu.
 """
 
-    suspend fun ask(apiKey: String, pilotName: String, userQuestion: String): Result<String> =
+    suspend fun ask(
+        apiKey: String,
+        pilotName: String,
+        userQuestion: String,
+        personality: String = "luzny",
+    ): Result<String> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val prompt = buildString {
@@ -43,11 +48,11 @@ Jeśli pytanie nie dotyczy drona/pogody — odpowiedz krótko i wróć do tematu
                     append("Pytanie: ")
                     append(userQuestion)
                 }
-                call(apiKey, prompt)
+                call(apiKey, personality, prompt)
             }
         }
 
-    private suspend fun call(apiKey: String, userMessage: String): String {
+    private suspend fun call(apiKey: String, personality: String, userMessage: String): String {
         val client = HttpClient(Android) {
             install(HttpTimeout) {
                 requestTimeoutMillis = 15_000
@@ -58,7 +63,7 @@ Jeśli pytanie nie dotyczy drona/pogody — odpowiedz krótko i wróć do tematu
             val body = buildJsonObject {
                 putJsonObject("systemInstruction") {
                     putJsonArray("parts") {
-                        addJsonObject { put("text", SYSTEM.trim()) }
+                        addJsonObject { put("text", CopilotPrompts.systemFor(personality).trim()) }
                     }
                 }
                 putJsonArray("contents") {

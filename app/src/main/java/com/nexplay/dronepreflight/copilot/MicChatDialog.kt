@@ -102,7 +102,8 @@ fun MicChatDialog(
                     append(question)
                 }
 
-                val r = JarvisChat.ask(apiKey = key, pilotName = name, userQuestion = context1)
+                val personality = store.assistantPersonality.first()
+                val r = JarvisChat.ask(apiKey = key, pilotName = name, userQuestion = context1, personality = personality)
                 answer = r.getOrElse { "Błąd: ${it.message?.take(80)}" }
                 CopilotSpeaker.init(context)
                 CopilotSpeaker.say(answer)

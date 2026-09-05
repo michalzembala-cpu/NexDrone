@@ -43,9 +43,10 @@ object GeminiCopilot {
         assessment: FlightAssessment,
         outlook: List<HourlyOutlook>,
         units: DisplayUnits,
+        personality: String = "luzny",
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
-            call(apiKey, CopilotPrompts.briefing(pilotName, snap, assessment, outlook, units))
+            call(apiKey, personality, CopilotPrompts.briefing(pilotName, snap, assessment, outlook, units))
         }
     }
 
@@ -58,13 +59,14 @@ object GeminiCopilot {
         units: DisplayUnits,
         goPct: Int,
         outlook: List<HourlyOutlook>,
+        personality: String = "luzny",
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
-            call(apiKey, CopilotPrompts.postFlight(pilotName, elapsedSec, maxWindMs, maxGustMs, units, goPct, outlook))
+            call(apiKey, personality, CopilotPrompts.postFlight(pilotName, elapsedSec, maxWindMs, maxGustMs, units, goPct, outlook))
         }
     }
 
-    private suspend fun call(apiKey: String, userMessage: String): String {
+    private suspend fun call(apiKey: String, personality: String, userMessage: String): String {
         val client = HttpClient(Android) {
             install(HttpTimeout) {
                 requestTimeoutMillis = 20_000
@@ -75,7 +77,7 @@ object GeminiCopilot {
             val body = buildJsonObject {
                 putJsonObject("systemInstruction") {
                     putJsonArray("parts") {
-                        addJsonObject { put("text", CopilotPrompts.SYSTEM.trim()) }
+                        addJsonObject { put("text", CopilotPrompts.systemFor(personality).trim()) }
                     }
                 }
                 putJsonArray("contents") {

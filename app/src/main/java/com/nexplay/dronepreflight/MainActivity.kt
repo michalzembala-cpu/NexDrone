@@ -145,11 +145,12 @@ class MainActivity : ComponentActivity() {
                     val name = store.pilotName.first()
                     val provider = store.assistantProvider.first()
                     val fallback = { AiCopilot.preFlightBriefing(name, snap, assess, state.hourlyOutlook, state.units).text }
+                    val personality = store.assistantPersonality.first()
                     val text = if (provider == "gemini") {
                         val key = store.assistantGeminiKey.first()
                         if (key.isBlank()) fallback()
                         else com.nexplay.dronepreflight.copilot.GeminiCopilot.briefing(
-                            key, name, snap, assess, state.hourlyOutlook, state.units,
+                            key, name, snap, assess, state.hourlyOutlook, state.units, personality,
                         ).getOrElse { fallback() }
                     } else fallback()
                     CopilotSpeaker.say(text)

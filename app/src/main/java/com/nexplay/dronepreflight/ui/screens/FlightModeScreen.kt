@@ -111,11 +111,12 @@ fun FlightModeScreen(
                 val provider = store.assistantProvider.first()
                 val fallback = { AiCopilot.postFlight(name, elapsed, maxW, maxG, units, goPct, emptyList<HourlyOutlook>()).text }
 
+                val personality = store.assistantPersonality.first()
                 val text = if (provider == "gemini") {
                     val key = store.assistantGeminiKey.first()
                     if (key.isBlank()) fallback()
                     else com.nexplay.dronepreflight.copilot.GeminiCopilot.postFlight(
-                        key, name, elapsed, maxW, maxG, units, goPct, emptyList(),
+                        key, name, elapsed, maxW, maxG, units, goPct, emptyList(), personality,
                     ).getOrElse { fallback() }
                 } else fallback()
                 CopilotSpeaker.say(text)

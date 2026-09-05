@@ -55,6 +55,12 @@ class SettingsStore(private val context: Context) {
         val AssistantProvider = stringPreferencesKey("assistant_provider") // "rule" | "gemini" | "claude"
         val UseGeminiTts = stringPreferencesKey("use_gemini_tts")
         val GeminiTtsVoice = stringPreferencesKey("gemini_tts_voice")
+        val AssistantPersonality = stringPreferencesKey("assistant_personality")  // luzny/pro/motywator/szyderca/mini
+    }
+
+    val assistantPersonality: Flow<String> = context.dataStore.data.map { it[Keys.AssistantPersonality] ?: "luzny" }
+    suspend fun setAssistantPersonality(p: String) {
+        context.dataStore.edit { it[Keys.AssistantPersonality] = p }
     }
 
     val useGeminiTts: Flow<Boolean> = context.dataStore.data.map { it[Keys.UseGeminiTts] == "1" }
