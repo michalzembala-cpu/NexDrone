@@ -659,18 +659,6 @@ private fun HourAssessmentCard(
         Verdict.NO_GO -> "NO-GO" to VerdictColors.NoGo
         null -> "—" to OpsColors.TextSecondary
     }
-    val windMs = snap.wind.median ?: 0.0
-    val gustMs = snap.gust.median ?: 0.0
-    val tempOk = snap.temp.median?.let { it in limits.minTempC..limits.maxTempC } ?: false
-    val kpOk = (snap.kpIndex ?: 10.0) < 5
-    val conditions = listOf(
-        "Wiatr < " + com.nexplay.dronepreflight.data.formatWind(limits.maxWindMs, units.wind, decimals = 0) to
-                (windMs < limits.maxWindMs),
-        "Porywy < " + com.nexplay.dronepreflight.data.formatWind(limits.maxWindMs * 1.5, units.wind, decimals = 0) to
-                (gustMs < limits.maxWindMs * 1.5),
-        "Temp. OK" to tempOk,
-        "KP index < 5" to kpOk,
-    )
     OpsDetailCard {
         Column(Modifier.padding(16.dp)) {
             Text(
@@ -679,30 +667,45 @@ private fun HourAssessmentCard(
                 color = OpsColors.TextSecondary,
             )
             Spacer(Modifier.height(10.dp))
-            Row {
-                Text(
-                    label,
-                    color = color,
-                    style = MaterialTheme.typography.displaySmall,
-                    modifier = Modifier.weight(1f),
-                )
-                Column {
-                    conditions.forEach { (text, ok) ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text,
-                                color = OpsColors.TextPrimary,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Icon(
-                                if (ok) androidx.compose.material.icons.Icons.Default.CheckCircle
-                                else androidx.compose.material.icons.Icons.Default.Cancel,
-                                contentDescription = null,
-                                tint = if (ok) VerdictColors.Go else VerdictColors.NoGo,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
+            Text(
+                label,
+                color = color,
+                style = MaterialTheme.typography.displaySmall,
+            )
+            Spacer(Modifier.height(12.dp))
+            // Pokazujemy WSZYSTKIE warunki które assessor sprawdził — inaczej user widzi
+            // 4 zielone ✓ i NO-GO obok, bo brakuje burza/mgła/widzialność.
+            assessment?.checks?.forEach { check ->
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val ckColor = when (check.verdict) {
+                        Verdict.GO -> VerdictColors.Go
+                        Verdict.CAUTION -> VerdictColors.Caution
+                        Verdict.NO_GO -> VerdictColors.NoGo
+                    }
+                    Icon(
+                        when (check.verdict) {
+                            Verdict.GO -> androidx.compose.material.icons.Icons.Default.CheckCircle
+                            else -> androidx.compose.material.icons.Icons.Default.Cancel
+                        },
+                        contentDescription = null,
+                        tint = ckColor,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            check.label,
+                            color = OpsColors.TextPrimary,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            check.value,
+                            color = ckColor,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                 }
             }

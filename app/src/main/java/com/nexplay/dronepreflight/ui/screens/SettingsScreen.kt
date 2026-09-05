@@ -509,12 +509,17 @@ fun SettingsScreen(
                     updateMsg = null
                     scope.launch {
                         val res = GithubUpdateChecker.check(context)
-                        val info = res.getOrNull()
                         updateChecking = false
                         when {
-                            info == null -> updateMsg = "✗ Brak połączenia lub błąd GitHub"
-                            info.hasUpdate && info.downloadUrl != null -> updateInfo = info
-                            else -> updateMsg = "✓ Masz najnowszą (${info.currentVersion})"
+                            res.isFailure -> {
+                                val ex = res.exceptionOrNull()
+                                updateMsg = "✗ ${ex?.javaClass?.simpleName}: ${ex?.message?.take(120)}"
+                            }
+                            else -> {
+                                val info = res.getOrNull()!!
+                                if (info.hasUpdate && info.downloadUrl != null) updateInfo = info
+                                else updateMsg = "✓ Masz najnowszą (${info.currentVersion})"
+                            }
                         }
                     }
                 },
