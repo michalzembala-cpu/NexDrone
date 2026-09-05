@@ -53,6 +53,18 @@ class SettingsStore(private val context: Context) {
         // Gemini (darmowy)
         val AssistantGeminiKey = stringPreferencesKey("assistant_gemini_key")
         val AssistantProvider = stringPreferencesKey("assistant_provider") // "rule" | "gemini" | "claude"
+        val UseGeminiTts = stringPreferencesKey("use_gemini_tts")
+        val GeminiTtsVoice = stringPreferencesKey("gemini_tts_voice")
+    }
+
+    val useGeminiTts: Flow<Boolean> = context.dataStore.data.map { it[Keys.UseGeminiTts] == "1" }
+    suspend fun setUseGeminiTts(on: Boolean) {
+        context.dataStore.edit { it[Keys.UseGeminiTts] = if (on) "1" else "0" }
+    }
+
+    val geminiTtsVoice: Flow<String> = context.dataStore.data.map { it[Keys.GeminiTtsVoice] ?: "Kore" }
+    suspend fun setGeminiTtsVoice(voice: String) {
+        context.dataStore.edit { it[Keys.GeminiTtsVoice] = voice }
     }
 
     val pilotName: Flow<String> = context.dataStore.data.map { it[Keys.PilotName] ?: "" }

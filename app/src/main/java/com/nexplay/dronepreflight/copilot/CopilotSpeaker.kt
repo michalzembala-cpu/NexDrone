@@ -5,6 +5,11 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.Voice
 import android.util.Log
 import java.util.Locale
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * TTS wrapper — pręferuje Google TTS + neural/network voice + wolniejsza mowa (bardziej naturalna).
@@ -17,6 +22,18 @@ object CopilotSpeaker {
     @Volatile private var lastSpokenAt = 0L
     @Volatile private var lastSpokenHash = 0
     var selectedVoiceName: String? = null
+
+    // Gemini TTS config — set via configureGemini()
+    @Volatile private var geminiEnabled = false
+    @Volatile private var geminiKey: String = ""
+    @Volatile private var geminiCurrentJob: Job? = null
+    private val bgScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    fun configureGemini(enabled: Boolean, apiKey: String, voiceName: String) {
+        geminiEnabled = enabled && apiKey.isNotBlank()
+        geminiKey = apiKey
+        GeminiTts.voiceName = voiceName
+    }
 
     fun init(context: Context) {
         if (tts != null) return
@@ -68,13 +85,33 @@ object CopilotSpeaker {
         if (v != null) tts?.voice = v
     }
 
-    /** Powiedz tekst. Deduplikuje — nie powtarza tego samego w ciągu 30s. */
+    /** Powiedz tekst. Deduplikuje — nie powtarza tego samego w ciągu 30s.
+     *  Jeśli Gemini TTS włączone → generuje audio z chmury (bardziej naturalne),
+     *  fallback do Android TTS gdy błąd. */
     fun say(text: String) {
         val now = System.currentTimeMillis()
         val hash = text.hashCode()
         if (hash == lastSpokenHash && now - lastSpokenAt < 30_000) return
         lastSpokenAt = now
         lastSpokenHash = hash
+
+        if (geminiEnabled) {
+            // Anuluj poprzednie odtwarzanie
+            geminiCurrentJob?.cancel()
+            geminiCurrentJob = bgScope.launch {
+                val r = GeminiTts.synthesize(geminiKey, text)
+                val audio = r.getOrNull()
+                if (audio != null && audio.isNotEmpty()) {
+                    GeminiTts.playPcm(audio)
+                } else {
+                    Log.w("CopilotSpeaker", "Gemini TTS failed, fallback: ${r.exceptionOrNull()?.message}")
+                    // Fallback do Android TTS
+                    if (ready) speakNow(text)
+                    else synchronized(queue) { queue += text }
+                }
+            }
+            return
+        }
 
         if (!ready) {
             synchronized(queue) { queue += text }

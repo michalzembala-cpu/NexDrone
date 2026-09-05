@@ -125,6 +125,16 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // AI Co-pilot — konfiguracja Gemini TTS (bardziej naturalny głos)
+                LaunchedEffect(Unit) {
+                    val store = SettingsStore(applicationContext)
+                    val useGemTts = store.useGeminiTts.first()
+                    val key = store.assistantGeminiKey.first()
+                    val voice = store.geminiTtsVoice.first()
+                    CopilotSpeaker.init(applicationContext)
+                    CopilotSpeaker.configureGemini(useGemTts, key, voice)
+                }
+
                 // AI Co-pilot — pre-flight briefing gdy załadował się świeży snapshot
                 LaunchedEffect(state.snapshot?.fetchedAt) {
                     val snap = state.snapshot ?: return@LaunchedEffect

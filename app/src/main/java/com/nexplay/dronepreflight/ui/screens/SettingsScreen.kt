@@ -294,6 +294,71 @@ fun SettingsScreen(
                 )
             }
 
+            // Gemini TTS — chmurowa synteza, dużo bardziej naturalna
+            Spacer(Modifier.height(6.dp))
+            HorizontalDivider(color = OpsColors.Grid)
+            val useGeminiTts by settingsStore.useGeminiTts.collectAsState(initial = false)
+            val geminiTtsVoice by settingsStore.geminiTtsVoice.collectAsState(initial = "Kore")
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Naturalny głos (Gemini TTS)", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Chmurowa synteza — dużo bardziej ludzki głos niż Android. Używa Twojego klucza Gemini, wchodzi w free tier.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OpsColors.TextSecondary,
+                    )
+                }
+                Switch(
+                    checked = useGeminiTts,
+                    onCheckedChange = { on ->
+                        scope.launch {
+                            settingsStore.setUseGeminiTts(on)
+                            val key = settingsStore.assistantGeminiKey.first()
+                            CopilotSpeaker.configureGemini(on, key, geminiTtsVoice)
+                        }
+                    },
+                )
+            }
+            if (useGeminiTts) {
+                Text(
+                    "Głos Gemini (kliknij aby posłuchać)",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = OpsColors.TextSecondary,
+                )
+                val geminiVoices = listOf(
+                    "Kore" to "spokojny męski (rekomendowany)",
+                    "Puck" to "energiczny męski",
+                    "Charon" to "głęboki męski",
+                    "Fenrir" to "władczy męski",
+                    "Aoede" to "kobiecy przyjazny",
+                    "Leda" to "kobiecy młody",
+                    "Orus" to "męski zawadiacki",
+                    "Zephyr" to "kobiecy spokojny",
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    geminiVoices.forEach { (id, desc) ->
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = geminiTtsVoice == id,
+                                onClick = {
+                                    scope.launch {
+                                        settingsStore.setGeminiTtsVoice(id)
+                                        val key = settingsStore.assistantGeminiKey.first()
+                                        CopilotSpeaker.configureGemini(true, key, id)
+                                        // Sample
+                                        CopilotSpeaker.say("Hej, tu Jarvis. Warunki OK, można lecieć.")
+                                    }
+                                },
+                            )
+                            Text("$id — $desc", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+
             // Hej Jarvis — wake word (foreground service)
             Spacer(Modifier.height(6.dp))
             val jarvisOn = remember { mutableStateOf(com.nexplay.dronepreflight.copilot.JarvisService.isRunning) }
