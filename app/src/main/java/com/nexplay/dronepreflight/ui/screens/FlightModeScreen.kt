@@ -22,13 +22,19 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
+import com.nexplay.dronepreflight.copilot.AiCopilot
+import com.nexplay.dronepreflight.copilot.CopilotSpeaker
 import com.nexplay.dronepreflight.data.DisplayUnits
+import com.nexplay.dronepreflight.data.SettingsStore
 import com.nexplay.dronepreflight.data.TempUnit
 import com.nexplay.dronepreflight.data.Verdict
 import com.nexplay.dronepreflight.data.WindUnit
 import com.nexplay.dronepreflight.data.tempIn
 import com.nexplay.dronepreflight.data.windIn
 import com.nexplay.dronepreflight.data.windDirectionCardinal
+import kotlinx.coroutines.flow.first
+import com.nexplay.dronepreflight.ui.HourlyOutlook
 import com.nexplay.dronepreflight.ui.UiState
 import com.nexplay.dronepreflight.ui.theme.OpsColors
 import com.nexplay.dronepreflight.ui.theme.VerdictColors
@@ -90,6 +96,25 @@ fun FlightModeScreen(
     }
 
     if (showSummary) {
+        // AI Co-pilot — podsumowanie głosowe (raz, przy pierwszym pokazaniu)
+        val context = LocalContext.current
+        LaunchedEffect(Unit) {
+            val store = SettingsStore(context)
+            if (store.assistantEnabled.first()) {
+                CopilotSpeaker.init(context)
+                val total = (goSecs + cautSecs + noGoSecs).coerceAtLeast(1)
+                val msg = AiCopilot.postFlight(
+                    pilotName = store.pilotName.first(),
+                    elapsedSec = (elapsedMs / 1000).toInt(),
+                    maxWindMs = maxWind.takeIf { it > 0.0 },
+                    maxGustMs = maxGust.takeIf { it > 0.0 },
+                    units = units,
+                    goPct = (goSecs * 100 / total),
+                    outlook = emptyList<HourlyOutlook>(),
+                )
+                CopilotSpeaker.say(msg.text)
+            }
+        }
         FlightSummaryDialog(
             elapsedMs = elapsedMs,
             goSecs = goSecs,

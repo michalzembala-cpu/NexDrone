@@ -10,6 +10,20 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Asystent głosowy. Proszone dopiero przy pierwszym tapnięciu w mikrofon, nie na starcie. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Od Androida 11 pakiet musi zadeklarować, że w ogóle widzi silnik rozpoznawania mowy
+         i syntezatora — bez tego SpeechRecognizer.isRecognitionAvailable() zwraca false na
+         czystym systemie, mimo że silnik jest zainstalowany. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
 
     <application
         android:allowBackup="true"

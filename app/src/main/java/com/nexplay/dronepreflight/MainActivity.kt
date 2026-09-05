@@ -22,12 +22,16 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.nexplay.dronepreflight.assistant.AssistantSheet
+import com.nexplay.dronepreflight.copilot.AiCopilot
+import com.nexplay.dronepreflight.copilot.CopilotSpeaker
 import com.nexplay.dronepreflight.data.SettingsStore
 import com.nexplay.dronepreflight.monitor.StormMonitorService
 import com.nexplay.dronepreflight.notify.GoWindowWorker
@@ -121,6 +125,24 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // AI Co-pilot — pre-flight briefing gdy załadował się świeży snapshot
+                LaunchedEffect(state.snapshot?.fetchedAt) {
+                    val snap = state.snapshot ?: return@LaunchedEffect
+                    val assess = state.assessment ?: return@LaunchedEffect
+                    val store = SettingsStore(applicationContext)
+                    if (!store.assistantEnabled.first()) return@LaunchedEffect
+                    CopilotSpeaker.init(applicationContext)
+                    val name = store.pilotName.first()
+                    val msg = AiCopilot.preFlightBriefing(
+                        pilotName = name,
+                        snap = snap,
+                        assessment = assess,
+                        outlook = state.hourlyOutlook,
+                        units = state.units,
+                    )
+                    CopilotSpeaker.say(msg.text)
+                }
+
                 var flightModeActive by rememberSaveable { mutableStateOf(false) }
                 if (flightModeActive) {
                     FlightModeScreen(
@@ -140,6 +162,15 @@ class MainActivity : ComponentActivity() {
                 )
                 val scope = rememberCoroutineScope()
                 val current = Tab.entries[pagerState.currentPage]
+
+                // Asystent jest opt-in: bierze mikrofon, więc dopóki nie jest włączony
+                // w Ustawieniach, nie ma nawet przycisku, który by go otwierał.
+                val assistantSettings = remember { SettingsStore(applicationContext) }
+                val assistantEnabled by assistantSettings.assistantEnabled.collectAsState(initial = false)
+                var assistantOpen by rememberSaveable { mutableStateOf(false) }
+                if (assistantOpen) {
+                    AssistantSheet(vm = vm, onDismiss = { assistantOpen = false })
+                }
 
                 LaunchedEffect(Unit) {
                     val perms = mutableListOf(
@@ -178,6 +209,13 @@ class MainActivity : ComponentActivity() {
                                     icon = { Icon(tab.icon, contentDescription = tab.label) },
                                     label = { Text(tab.label) },
                                 )
+                            }
+                        }
+                    },
+                    floatingActionButton = {
+                        if (assistantEnabled) {
+                            FloatingActionButton(onClick = { assistantOpen = true }) {
+                                Icon(Icons.Default.Mic, contentDescription = "Asystent")
                             }
                         }
                     },

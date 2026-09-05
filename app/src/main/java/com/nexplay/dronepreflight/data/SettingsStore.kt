@@ -44,6 +44,48 @@ class SettingsStore(private val context: Context) {
         // Auto-update dialog throttle + dismiss-memory
         val LastUpdateCheckAt = longPreferencesKey("update_check_at")
         val DismissedUpdateVersion = stringPreferencesKey("update_dismissed_ver")
+        // Asystent głosowy
+        val AssistantEnabled = stringPreferencesKey("assistant_enabled")
+        val AssistantSpeak = stringPreferencesKey("assistant_speak")
+        val AssistantUseLlm = stringPreferencesKey("assistant_use_llm")
+        val AssistantApiKey = stringPreferencesKey("assistant_api_key")
+        val PilotName = stringPreferencesKey("pilot_name")
+    }
+
+    val pilotName: Flow<String> = context.dataStore.data.map { it[Keys.PilotName] ?: "" }
+    suspend fun setPilotName(name: String) {
+        context.dataStore.edit { it[Keys.PilotName] = name.trim() }
+    }
+
+    // ── Asystent głosowy ──
+    //
+    // Dwa osobne zgody. Pierwsza włącza lokalny, offline'owy zestaw komend i mikrofon; druga —
+    // i tylko ona — wysyła cokolwiek na zewnątrz, i wymaga własnego klucza użytkownika.
+
+    val assistantEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[Keys.AssistantEnabled] == "1" }
+    suspend fun setAssistantEnabled(on: Boolean) {
+        context.dataStore.edit { it[Keys.AssistantEnabled] = if (on) "1" else "0" }
+    }
+
+    // Domyślnie włączone: przy dronie w powietrzu ręce są zajęte, a czytana odpowiedź jest
+    // jedynym sensownym wyjściem.
+    val assistantSpeak: Flow<Boolean> =
+        context.dataStore.data.map { it[Keys.AssistantSpeak] != "0" }
+    suspend fun setAssistantSpeak(on: Boolean) {
+        context.dataStore.edit { it[Keys.AssistantSpeak] = if (on) "1" else "0" }
+    }
+
+    val assistantUseLlm: Flow<Boolean> =
+        context.dataStore.data.map { it[Keys.AssistantUseLlm] == "1" }
+    suspend fun setAssistantUseLlm(on: Boolean) {
+        context.dataStore.edit { it[Keys.AssistantUseLlm] = if (on) "1" else "0" }
+    }
+
+    val assistantApiKey: Flow<String> =
+        context.dataStore.data.map { it[Keys.AssistantApiKey] ?: "" }
+    suspend fun setAssistantApiKey(key: String) {
+        context.dataStore.edit { it[Keys.AssistantApiKey] = key }
     }
 
     // ── Auto-update dialog ──

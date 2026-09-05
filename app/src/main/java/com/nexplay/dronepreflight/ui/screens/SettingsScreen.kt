@@ -17,14 +17,18 @@ import com.nexplay.dronepreflight.data.DisplayUnits
 import com.nexplay.dronepreflight.data.DroneLimits
 import com.nexplay.dronepreflight.data.DroneProfile
 import com.nexplay.dronepreflight.data.SavedLocation
+import com.nexplay.dronepreflight.data.SettingsStore
 import com.nexplay.dronepreflight.data.TempUnit
 import com.nexplay.dronepreflight.data.WindUnit
 import com.nexplay.dronepreflight.data.tempIn
 import com.nexplay.dronepreflight.data.tempToC
 import com.nexplay.dronepreflight.data.windIn
 import com.nexplay.dronepreflight.data.windToMs
+import com.nexplay.dronepreflight.copilot.CopilotSpeaker
+import com.nexplay.dronepreflight.data.SettingsStore
 import com.nexplay.dronepreflight.notify.TestNotifier
 import com.nexplay.dronepreflight.update.GithubUpdateChecker
+import kotlinx.coroutines.flow.first
 import com.nexplay.dronepreflight.update.UpdateAvailableDialog
 import com.nexplay.dronepreflight.ui.theme.DronePreflightTheme
 import com.nexplay.dronepreflight.ui.theme.OpsColors
@@ -197,6 +201,54 @@ fun SettingsScreen(
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
+        // ── AI Co-pilot (Jarvis) ──
+        val settingsStore = remember { SettingsStore(context) }
+        val copilotOn by settingsStore.assistantEnabled.collectAsState(initial = false)
+        val pilotNameFlow by settingsStore.pilotName.collectAsState(initial = "")
+        var pilotNameField by remember(pilotNameFlow) { mutableStateOf(pilotNameFlow) }
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("AI Co-pilot (głosowy)", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Odzywa się tylko gdy jest coś ważnego — pre-flight brief, alerty, podsumowanie lotu.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Switch(
+                checked = copilotOn,
+                onCheckedChange = { on ->
+                    scope.launch {
+                        settingsStore.setAssistantEnabled(on)
+                        if (on) CopilotSpeaker.init(context)
+                    }
+                },
+            )
+        }
+        if (copilotOn) {
+            OutlinedTextField(
+                value = pilotNameField,
+                onValueChange = { pilotNameField = it },
+                label = { Text("Twoje imię (jak zwracać się do Ciebie)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    scope.launch { settingsStore.setPilotName(pilotNameField) }
+                }) { Text("Zapisz imię") }
+                OutlinedButton(onClick = {
+                    scope.launch {
+                        CopilotSpeaker.init(context)
+                        val name = settingsStore.pilotName.first()
+                        val addr = if (name.isBlank()) "" else " $name"
+                        CopilotSpeaker.say("Systemy online$addr. Jestem gotów.")
+                    }
+                }) { Text("Test głosu") }
+            }
+        }
+
+        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Powiadomienia o oknach GO", style = MaterialTheme.typography.titleMedium)
@@ -257,6 +309,89 @@ fun SettingsScreen(
                     modifier = Modifier.align(androidx.compose.ui.Alignment.CenterVertically),
                 )
             }
+        }
+
+        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+        // Sekcja: asystent głosowy
+        //
+        // Dwa osobne przełączniki, bo to dwie osobne zgody. Pierwszy włącza lokalny zestaw
+        // komend i mikrofon — nic nie opuszcza telefonu. Drugi dopuszcza model w chmurze i bez
+        // własnego klucza nic nie robi.
+        Text("Asystent głosowy", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Zapytaj głosem o warunki, wiatr, Kp albo checklistę — przydaje się, gdy ręce trzymają aparaturę. " +
+                "Najczęstsze komendy działają offline, bez klucza i bez zasięgu.",
+            style = MaterialTheme.typography.bodySmall,
+            color = OpsColors.TextSecondary,
+        )
+
+        val assistantStore = remember { SettingsStore(context.applicationContext) }
+        val assistantOn by assistantStore.assistantEnabled.collectAsState(initial = false)
+        val assistantSpeak by assistantStore.assistantSpeak.collectAsState(initial = true)
+        val assistantLlm by assistantStore.assistantUseLlm.collectAsState(initial = false)
+        val assistantKey by assistantStore.assistantApiKey.collectAsState(initial = "")
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Text("Włącz asystenta (używa mikrofonu)", style = MaterialTheme.typography.bodyMedium)
+            Switch(
+                checked = assistantOn,
+                onCheckedChange = { scope.launch { assistantStore.setAssistantEnabled(it) } },
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Text("Czytaj odpowiedzi na głos", style = MaterialTheme.typography.bodyMedium)
+            Switch(
+                checked = assistantSpeak,
+                enabled = assistantOn,
+                onCheckedChange = { scope.launch { assistantStore.setAssistantSpeak(it) } },
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Text(
+                "Rozumienie dowolnych pytań przez Claude",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Switch(
+                checked = assistantLlm,
+                enabled = assistantOn,
+                onCheckedChange = { scope.launch { assistantStore.setAssistantUseLlm(it) } },
+            )
+        }
+
+        if (assistantOn && assistantLlm) {
+            var keyDraft by remember(assistantKey) { mutableStateOf(assistantKey) }
+            OutlinedTextField(
+                value = keyDraft,
+                onValueChange = {
+                    keyDraft = it
+                    scope.launch { assistantStore.setAssistantApiKey(it.trim()) }
+                },
+                label = { Text("Klucz API Anthropic") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                "Twój własny klucz z console.anthropic.com. Wtedy pytanie i bieżące warunki lecą do API. " +
+                    "Bez klucza działa tylko tryb offline.",
+                style = MaterialTheme.typography.bodySmall,
+                color = OpsColors.TextSecondary,
+            )
         }
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
