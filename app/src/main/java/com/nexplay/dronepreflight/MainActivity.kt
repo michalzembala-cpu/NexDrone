@@ -133,23 +133,15 @@ class MainActivity : ComponentActivity() {
                     if (!store.assistantEnabled.first()) return@LaunchedEffect
                     CopilotSpeaker.init(applicationContext)
                     val name = store.pilotName.first()
-                    val useLlm = store.assistantUseLlm.first()
-                    val apiKey = store.assistantApiKey.first()
-
-                    val text = if (useLlm && apiKey.isNotBlank()) {
-                        com.nexplay.dronepreflight.copilot.ClaudeCopilot.briefing(
-                            apiKey = apiKey,
-                            pilotName = name,
-                            snap = snap,
-                            assessment = assess,
-                            outlook = state.hourlyOutlook,
-                            units = state.units,
-                        ).getOrElse {
-                            AiCopilot.preFlightBriefing(name, snap, assess, state.hourlyOutlook, state.units).text
-                        }
-                    } else {
-                        AiCopilot.preFlightBriefing(name, snap, assess, state.hourlyOutlook, state.units).text
-                    }
+                    val provider = store.assistantProvider.first()
+                    val fallback = { AiCopilot.preFlightBriefing(name, snap, assess, state.hourlyOutlook, state.units).text }
+                    val text = if (provider == "gemini") {
+                        val key = store.assistantGeminiKey.first()
+                        if (key.isBlank()) fallback()
+                        else com.nexplay.dronepreflight.copilot.GeminiCopilot.briefing(
+                            key, name, snap, assess, state.hourlyOutlook, state.units,
+                        ).getOrElse { fallback() }
+                    } else fallback()
                     CopilotSpeaker.say(text)
                 }
 

@@ -50,11 +50,24 @@ class SettingsStore(private val context: Context) {
         val AssistantUseLlm = stringPreferencesKey("assistant_use_llm")
         val AssistantApiKey = stringPreferencesKey("assistant_api_key")
         val PilotName = stringPreferencesKey("pilot_name")
+        // Gemini (darmowy)
+        val AssistantGeminiKey = stringPreferencesKey("assistant_gemini_key")
+        val AssistantProvider = stringPreferencesKey("assistant_provider") // "rule" | "gemini" | "claude"
     }
 
     val pilotName: Flow<String> = context.dataStore.data.map { it[Keys.PilotName] ?: "" }
     suspend fun setPilotName(name: String) {
         context.dataStore.edit { it[Keys.PilotName] = name.trim() }
+    }
+
+    val assistantGeminiKey: Flow<String> = context.dataStore.data.map { it[Keys.AssistantGeminiKey] ?: "" }
+    suspend fun setAssistantGeminiKey(key: String) {
+        context.dataStore.edit { it[Keys.AssistantGeminiKey] = key }
+    }
+
+    val assistantProvider: Flow<String> = context.dataStore.data.map { it[Keys.AssistantProvider] ?: "rule" }
+    suspend fun setAssistantProvider(provider: String) {
+        context.dataStore.edit { it[Keys.AssistantProvider] = provider }
     }
 
     // ── Asystent głosowy ──
