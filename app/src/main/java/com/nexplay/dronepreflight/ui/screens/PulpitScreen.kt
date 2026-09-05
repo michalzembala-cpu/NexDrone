@@ -31,9 +31,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.content.Intent
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
+import com.nexplay.dronepreflight.copilot.MicChatDialog
 import com.nexplay.dronepreflight.data.AggregatedSnapshot
 import com.nexplay.dronepreflight.data.ConditionCheck
 import com.nexplay.dronepreflight.data.ConfidenceCalculator
@@ -71,7 +73,9 @@ fun PulpitScreen(
     units: com.nexplay.dronepreflight.data.DisplayUnits = com.nexplay.dronepreflight.data.DisplayUnits(),
 ) {
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    var showMic by rememberSaveable { mutableStateOf(false) }
 
+    Box(Modifier.fillMaxSize()) {
     Column(
         Modifier
             .fillMaxSize()
@@ -124,6 +128,19 @@ fun PulpitScreen(
         Spacer(Modifier.height(24.dp))
     }
 
+        // Floating mic — "MÓW MI"
+        FloatingActionButton(
+            onClick = { showMic = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+            containerColor = OpsColors.Accent,
+            contentColor = OpsColors.BgBase,
+        ) {
+            Icon(Icons.Default.Mic, contentDescription = "Zapytaj Jarvis")
+        }
+    }
+
     if (showDatePicker) {
         DatePickerHost(
             initial = state.selectedDate,
@@ -132,6 +149,15 @@ fun PulpitScreen(
                 showDatePicker = false
                 onDateSelected(it)
             },
+        )
+    }
+
+    if (showMic) {
+        MicChatDialog(
+            snap = state.snapshot,
+            assessment = state.assessment,
+            outlook = state.hourlyOutlook,
+            onDismiss = { showMic = false },
         )
     }
 }
