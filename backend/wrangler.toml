@@ -1,0 +1,9 @@
+name = "nexhub"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# KV namespace — bindowany jako env.PROFILES.
+# Po `wrangler kv namespace create profiles` → skopiuj `id` tutaj.
+kv_namespaces = [
+  { binding = "PROFILES", id = "REPLACE_WITH_ID_FROM_KV_CREATE" }
+]

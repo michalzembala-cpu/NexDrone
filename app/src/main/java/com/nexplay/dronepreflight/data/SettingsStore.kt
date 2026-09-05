@@ -56,6 +56,19 @@ class SettingsStore(private val context: Context) {
         val UseGeminiTts = stringPreferencesKey("use_gemini_tts")
         val GeminiTtsVoice = stringPreferencesKey("gemini_tts_voice")
         val AssistantPersonality = stringPreferencesKey("assistant_personality")  // luzny/pro/motywator/szyderca/mini
+        // NexHub (backend wspolny z NexPlay)
+        val HubUrl = stringPreferencesKey("hub_url")
+        val HubToken = stringPreferencesKey("hub_token")
+    }
+
+    val hubUrl: Flow<String> = context.dataStore.data.map { it[Keys.HubUrl] ?: "" }
+    suspend fun setHubUrl(url: String) {
+        context.dataStore.edit { it[Keys.HubUrl] = url.trim().trimEnd('/') }
+    }
+
+    val hubToken: Flow<String> = context.dataStore.data.map { it[Keys.HubToken] ?: "" }
+    suspend fun setHubToken(token: String) {
+        context.dataStore.edit { it[Keys.HubToken] = token.trim() }
     }
 
     val assistantPersonality: Flow<String> = context.dataStore.data.map { it[Keys.AssistantPersonality] ?: "luzny" }

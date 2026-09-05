@@ -97,6 +97,19 @@ fun MicChatDialog(
                             "%02d:00=%.1f".format(it.timeLocal.hour, it.windMs ?: 0.0)
                         })
                     }
+
+                    // Dane z NexHub (wspólny profil z NexPlay)
+                    val hubUrl = store.hubUrl.first()
+                    val hubToken = store.hubToken.first()
+                    if (hubUrl.isNotBlank() && hubToken.isNotBlank()) {
+                        com.nexplay.dronepreflight.hub.NexHubClient.fetchProfile(hubUrl, hubToken).getOrNull()?.let { profile ->
+                            if (profile.rl.isNotEmpty()) {
+                                appendLine("Dane Rocket League z NexPlay:")
+                                profile.rl.forEach { (k, v) -> appendLine("- $k: $v") }
+                            }
+                        }
+                    }
+
                     appendLine()
                     appendLine("Pytanie pilota:")
                     append(question)

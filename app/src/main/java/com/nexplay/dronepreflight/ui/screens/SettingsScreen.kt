@@ -294,6 +294,81 @@ fun SettingsScreen(
                 )
             }
 
+            // NexHub — most do NexPlay (wspólny profil, RL rank, itp.)
+            Spacer(Modifier.height(6.dp))
+            HorizontalDivider(color = OpsColors.Grid)
+            Text("NexHub (most do NexPlay)", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "Wspólny profil — Jarvis w NexDrone zobaczy Twoją rangę z Rocket League z NexPlay i odwrotnie. Wymaga własnego backendu (Cloudflare Worker, darmowe). Instrukcje: repo/backend/README.md",
+                style = MaterialTheme.typography.bodySmall,
+                color = OpsColors.TextSecondary,
+            )
+            val hubUrlFlow by settingsStore.hubUrl.collectAsState(initial = "")
+            val hubTokenFlow by settingsStore.hubToken.collectAsState(initial = "")
+            var hubUrlField by remember(hubUrlFlow) { mutableStateOf(hubUrlFlow) }
+            var hubTokenField by remember(hubTokenFlow) { mutableStateOf(hubTokenFlow) }
+            var hubStatus by remember { mutableStateOf<String?>(null) }
+            OutlinedTextField(
+                value = hubUrlField,
+                onValueChange = { hubUrlField = it },
+                label = { Text("URL backendu (np. https://nexhub.you.workers.dev)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = hubTokenField,
+                onValueChange = { hubTokenField = it },
+                label = { Text("Token profilu") },
+                singleLine = true,
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    scope.launch {
+                        settingsStore.setHubUrl(hubUrlField)
+                        settingsStore.setHubToken(hubTokenField)
+                        hubStatus = "✓ Zapisane"
+                    }
+                }) { Text("Zapisz") }
+                OutlinedButton(
+                    enabled = hubUrlField.isNotBlank(),
+                    onClick = {
+                        hubStatus = "Tworzę profil…"
+                        scope.launch {
+                            val r = com.nexplay.dronepreflight.hub.NexHubClient.createProfile(hubUrlField.trim().trimEnd('/'))
+                            r.onSuccess {
+                                hubTokenField = it
+                                settingsStore.setHubUrl(hubUrlField)
+                                settingsStore.setHubToken(it)
+                                hubStatus = "✓ Nowy profil: $it — zapisz go w NexPlay!"
+                            }
+                            r.onFailure { hubStatus = "✗ ${it.message?.take(80)}" }
+                        }
+                    },
+                ) { Text("Nowy profil") }
+                OutlinedButton(
+                    enabled = hubUrlField.isNotBlank() && hubTokenField.isNotBlank(),
+                    onClick = {
+                        hubStatus = "Sprawdzam…"
+                        scope.launch {
+                            val r = com.nexplay.dronepreflight.hub.NexHubClient.fetchProfile(hubUrlField.trim().trimEnd('/'), hubTokenField)
+                            hubStatus = r.fold(
+                                onSuccess = { "✓ RL: ${it.rl.size} pól, Drone: ${it.drone.size} pól" },
+                                onFailure = { "✗ ${it.message?.take(80)}" },
+                            )
+                        }
+                    },
+                ) { Text("Test") }
+            }
+            hubStatus?.let {
+                Text(
+                    it,
+                    color = if (it.startsWith("✓")) VerdictColors.Go else VerdictColors.NoGo,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
             // Gemini TTS — chmurowa synteza, dużo bardziej naturalna
             Spacer(Modifier.height(6.dp))
             HorizontalDivider(color = OpsColors.Grid)
