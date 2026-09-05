@@ -240,9 +240,58 @@ fun SettingsScreen(
                         CopilotSpeaker.init(context)
                         val name = settingsStore.pilotName.first()
                         val addr = if (name.isBlank()) "" else " $name"
-                        CopilotSpeaker.say("Systemy online$addr. Jestem gotów.")
+                        CopilotSpeaker.say("Hej$addr, tu Jarvis. Warunki OK, można lecieć.")
                     }
                 }) { Text("Test głosu") }
+            }
+
+            // Wybór głosu — sample każdego dostępnego polskiego głosu
+            var voices by remember { mutableStateOf<List<android.speech.tts.Voice>>(emptyList()) }
+            LaunchedEffect(Unit) {
+                CopilotSpeaker.init(context)
+                kotlinx.coroutines.delay(800)  // TTS potrzebuje chwili
+                voices = CopilotSpeaker.listPolishVoices()
+            }
+            if (voices.isNotEmpty()) {
+                Text(
+                    "Głos (${voices.size} dostępne, kliknij aby posłuchać)",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = OpsColors.TextSecondary,
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    voices.forEach { voice ->
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = CopilotSpeaker.selectedVoiceName == voice.name,
+                                onClick = {
+                                    CopilotSpeaker.setVoice(voice.name)
+                                    CopilotSpeaker.say("Testowy głos. Nazywam się Jarvis.")
+                                },
+                            )
+                            Column(Modifier.weight(1f)) {
+                                val quality = when {
+                                    voice.quality >= android.speech.tts.Voice.QUALITY_VERY_HIGH -> "★★★"
+                                    voice.quality >= android.speech.tts.Voice.QUALITY_HIGH -> "★★"
+                                    else -> "★"
+                                }
+                                Text("$quality  ${voice.name.take(40)}", style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    if (voice.isNetworkConnectionRequired) "wymaga internetu" else "offline",
+                                    color = OpsColors.TextSecondary,
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            }
+                        }
+                    }
+                }
+                Text(
+                    "Wskazówka: najlepsze polskie głosy pobierzesz w Ustawienia Android → Język → Ustawienia zamiany tekstu na mowę → Google Speech Services → Zainstaluj dane głosowe.",
+                    color = OpsColors.TextSecondary,
+                    style = MaterialTheme.typography.labelSmall,
+                )
             }
 
             // Hej Jarvis — wake word (foreground service)

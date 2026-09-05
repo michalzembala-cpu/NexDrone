@@ -2,12 +2,12 @@ package com.nexplay.dronepreflight.copilot
 
 import android.content.Context
 import android.speech.tts.TextToSpeech
+import android.speech.tts.Voice
 import android.util.Log
 import java.util.Locale
 
 /**
- * TTS wrapper — proces głos się inicjalizuje asynchronicznie. Kolejkujemy jak jeszcze nie gotowy.
- * Jedna instancja per apka.
+ * TTS wrapper — pręferuje Google TTS + neural/network voice + wolniejsza mowa (bardziej naturalna).
  */
 object CopilotSpeaker {
 
@@ -16,12 +16,19 @@ object CopilotSpeaker {
     private val queue = mutableListOf<String>()
     @Volatile private var lastSpokenAt = 0L
     @Volatile private var lastSpokenHash = 0
+    var selectedVoiceName: String? = null
 
     fun init(context: Context) {
         if (tts != null) return
-        tts = TextToSpeech(context.applicationContext) { status ->
+        // Wymuszamy Google TTS engine jeśli dostępny — najlepszy jakościowo na Androidzie
+        val googleTts = "com.google.android.tts"
+        tts = TextToSpeech(context.applicationContext, { status ->
             if (status == TextToSpeech.SUCCESS) {
                 tts?.language = Locale("pl", "PL")
+                // Wolniej + niżej = mniej robotyczne
+                tts?.setSpeechRate(0.95f)
+                tts?.setPitch(0.95f)
+                pickBestVoice()
                 ready = true
                 synchronized(queue) {
                     queue.forEach { speakNow(it) }
@@ -30,7 +37,35 @@ object CopilotSpeaker {
             } else {
                 Log.w("CopilotSpeaker", "TTS init failed: $status")
             }
-        }
+        }, googleTts)
+    }
+
+    private fun pickBestVoice() {
+        val voices = tts?.voices ?: return
+        val polishVoices = voices.filter { it.locale.language == "pl" }
+        if (polishVoices.isEmpty()) return
+
+        // Preferencja (od najlepszej):
+        // 1. Zaznaczony przez usera
+        // 2. Nie wymaga sieci + wysoka jakość + nie male-default (bardziej naturalne)
+        // 3. Cokolwiek polskiego bez network fallback
+        val chosen = selectedVoiceName?.let { name -> polishVoices.firstOrNull { it.name == name } }
+            ?: polishVoices.filter { !it.isNetworkConnectionRequired && it.quality >= Voice.QUALITY_HIGH }
+                .firstOrNull { it.name.contains("Wavenet", ignoreCase = true) || it.name.contains("neural", ignoreCase = true) }
+            ?: polishVoices.filter { !it.isNetworkConnectionRequired }
+                .maxByOrNull { it.quality }
+            ?: polishVoices.first()
+        tts?.voice = chosen
+        Log.d("CopilotSpeaker", "Wybrany głos: ${chosen.name} (jakość=${chosen.quality})")
+    }
+
+    fun listPolishVoices(): List<Voice> =
+        tts?.voices?.filter { it.locale.language == "pl" }?.sortedByDescending { it.quality } ?: emptyList()
+
+    fun setVoice(name: String) {
+        selectedVoiceName = name
+        val v = tts?.voices?.firstOrNull { it.name == name }
+        if (v != null) tts?.voice = v
     }
 
     /** Powiedz tekst. Deduplikuje — nie powtarza tego samego w ciągu 30s. */
