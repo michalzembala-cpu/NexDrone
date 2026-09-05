@@ -245,6 +245,28 @@ fun SettingsScreen(
                 }) { Text("Test głosu") }
             }
 
+            // Hej Jarvis — wake word (foreground service)
+            Spacer(Modifier.height(6.dp))
+            val jarvisOn = remember { mutableStateOf(com.nexplay.dronepreflight.copilot.JarvisService.isRunning) }
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Hej Jarvis (wake word)", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Ciągłe nasłuchiwanie w tle. Nawet gdy apka zamknięta. UWAGA: bateria drenuje 2-3x szybciej.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OpsColors.TextSecondary,
+                    )
+                }
+                Switch(
+                    checked = jarvisOn.value,
+                    onCheckedChange = { on ->
+                        jarvisOn.value = on
+                        if (on) com.nexplay.dronepreflight.copilot.JarvisService.start(context)
+                        else com.nexplay.dronepreflight.copilot.JarvisService.stop(context)
+                    },
+                )
+            }
+
             // Provider AI: rule-based (offline) / Gemini (darmowe od Google)
             Spacer(Modifier.height(6.dp))
             val provider by settingsStore.assistantProvider.collectAsState(initial = "rule")

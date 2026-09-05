@@ -8,9 +8,10 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <!-- Asystent głosowy. Proszone dopiero przy pierwszym tapnięciu w mikrofon, nie na starcie. -->
+    <!-- Jarvis wake word — mikrofon zawsze aktywny gdy service uruchomiony. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!-- Od Androida 11 pakiet musi zadeklarować, że w ogóle widzi silnik rozpoznawania mowy
@@ -48,6 +49,11 @@
             android:name=".monitor.StormMonitorService"
             android:exported="false"
             android:foregroundServiceType="location" />
+
+        <service
+            android:name=".copilot.JarvisService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
         <receiver
             android:name=".widget.NexDroneWidgetReceiver"

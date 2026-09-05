@@ -178,6 +178,7 @@ class MainActivity : ComponentActivity() {
                     val perms = mutableListOf(
                         Manifest.permission.ACCESS_COARSE_LOCATION,
                         Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.RECORD_AUDIO,
                     )
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         perms += Manifest.permission.POST_NOTIFICATIONS
