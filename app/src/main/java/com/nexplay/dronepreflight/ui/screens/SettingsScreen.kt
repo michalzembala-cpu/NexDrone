@@ -381,35 +381,6 @@ fun SettingsScreen(
                 )
             }
 
-            // Osobowość Jarvisa
-            Spacer(Modifier.height(6.dp))
-            val personality by settingsStore.assistantPersonality.collectAsState(initial = "luzny")
-            Text("Osobowość Jarvis'a", style = MaterialTheme.typography.titleSmall)
-            val personalities = listOf(
-                "luzny" to ("😎 Luźny" to "Kumpel, po imieniu, konkret + humor"),
-                "pro" to ("🎯 Profesjonalny" to "Rzeczowy, formalny, bez żartów"),
-                "motywator" to ("🔥 Motywator" to "Podkręca energię, wspiera"),
-                "szyderca" to ("😂 Szyderca" to "Sarkastyczny, złośliwy, ale dba"),
-                "mini" to ("🤖 Minimalny" to "Radio-operator, tylko fakty"),
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                personalities.forEach { (id, labels) ->
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    ) {
-                        RadioButton(
-                            selected = personality == id,
-                            onClick = { scope.launch { settingsStore.setAssistantPersonality(id) } },
-                        )
-                        Column(Modifier.weight(1f)) {
-                            Text(labels.first, style = MaterialTheme.typography.bodyMedium)
-                            Text(labels.second, style = MaterialTheme.typography.labelSmall, color = OpsColors.TextSecondary)
-                        }
-                    }
-                }
-            }
-
             // Provider AI: rule-based (offline) / Gemini (darmowe od Google)
             Spacer(Modifier.height(6.dp))
             val provider by settingsStore.assistantProvider.collectAsState(initial = "rule")
