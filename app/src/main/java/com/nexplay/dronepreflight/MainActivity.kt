@@ -133,14 +133,24 @@ class MainActivity : ComponentActivity() {
                     if (!store.assistantEnabled.first()) return@LaunchedEffect
                     CopilotSpeaker.init(applicationContext)
                     val name = store.pilotName.first()
-                    val msg = AiCopilot.preFlightBriefing(
-                        pilotName = name,
-                        snap = snap,
-                        assessment = assess,
-                        outlook = state.hourlyOutlook,
-                        units = state.units,
-                    )
-                    CopilotSpeaker.say(msg.text)
+                    val useLlm = store.assistantUseLlm.first()
+                    val apiKey = store.assistantApiKey.first()
+
+                    val text = if (useLlm && apiKey.isNotBlank()) {
+                        com.nexplay.dronepreflight.copilot.ClaudeCopilot.briefing(
+                            apiKey = apiKey,
+                            pilotName = name,
+                            snap = snap,
+                            assessment = assess,
+                            outlook = state.hourlyOutlook,
+                            units = state.units,
+                        ).getOrElse {
+                            AiCopilot.preFlightBriefing(name, snap, assess, state.hourlyOutlook, state.units).text
+                        }
+                    } else {
+                        AiCopilot.preFlightBriefing(name, snap, assess, state.hourlyOutlook, state.units).text
+                    }
+                    CopilotSpeaker.say(text)
                 }
 
                 var flightModeActive by rememberSaveable { mutableStateOf(false) }

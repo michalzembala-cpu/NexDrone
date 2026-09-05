@@ -25,7 +25,6 @@ import com.nexplay.dronepreflight.data.tempToC
 import com.nexplay.dronepreflight.data.windIn
 import com.nexplay.dronepreflight.data.windToMs
 import com.nexplay.dronepreflight.copilot.CopilotSpeaker
-import com.nexplay.dronepreflight.data.SettingsStore
 import com.nexplay.dronepreflight.notify.TestNotifier
 import com.nexplay.dronepreflight.update.GithubUpdateChecker
 import kotlinx.coroutines.flow.first
@@ -244,6 +243,92 @@ fun SettingsScreen(
                         CopilotSpeaker.say("Systemy online$addr. Jestem gotów.")
                     }
                 }) { Text("Test głosu") }
+            }
+
+            // Claude API — mądrzejsze odpowiedzi
+            Spacer(Modifier.height(6.dp))
+            val useLlm by settingsStore.assistantUseLlm.collectAsState(initial = false)
+            val apiKeyFlow by settingsStore.assistantApiKey.collectAsState(initial = "")
+            var apiKeyField by remember(apiKeyFlow) { mutableStateOf(apiKeyFlow) }
+            var apiTestStatus by remember { mutableStateOf<String?>(null) }
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Użyj Claude API (mądrzejsze odpowiedzi)", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Zamiast rule-based briefingu — Claude Haiku 4.5 generuje tekst z pełnego kontekstu. Wymaga klucza API. Koszt ~$0.001 za briefing.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OpsColors.TextSecondary,
+                    )
+                }
+                Switch(
+                    checked = useLlm,
+                    onCheckedChange = { on -> scope.launch { settingsStore.setAssistantUseLlm(on) } },
+                )
+            }
+            if (useLlm) {
+                OutlinedTextField(
+                    value = apiKeyField,
+                    onValueChange = { apiKeyField = it },
+                    label = { Text("Klucz Claude API (sk-ant-...)") },
+                    singleLine = true,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = {
+                        scope.launch { settingsStore.setAssistantApiKey(apiKeyField) }
+                    }) { Text("Zapisz klucz") }
+                    OutlinedButton(onClick = {
+                        apiTestStatus = "Sprawdzam…"
+                        scope.launch {
+                            val key = settingsStore.assistantApiKey.first()
+                            if (key.isBlank()) { apiTestStatus = "✗ Wpisz klucz"; return@launch }
+                            val r = runCatching {
+                                com.nexplay.dronepreflight.copilot.ClaudeCopilot.briefing(
+                                    apiKey = key,
+                                    pilotName = settingsStore.pilotName.first(),
+                                    snap = com.nexplay.dronepreflight.data.AggregatedSnapshot(
+                                        locationName = "Test", latitude = 52.23, longitude = 21.01,
+                                        fetchedAt = System.currentTimeMillis(), successfulSources = 5, totalSources = 5,
+                                        readings = emptyList(), failures = emptyList(),
+                                        wind = com.nexplay.dronepreflight.data.SourceStat(5.0, 4.5, 5.5, 0.3, 5),
+                                        gust = com.nexplay.dronepreflight.data.SourceStat(7.0, 6.5, 7.5, 0.3, 5),
+                                        windDir = com.nexplay.dronepreflight.data.SourceStat(270.0, 260.0, 280.0, 5.0, 5),
+                                        temp = com.nexplay.dronepreflight.data.SourceStat(20.0, 19.0, 21.0, 0.5, 5),
+                                        precip = com.nexplay.dronepreflight.data.SourceStat(0.0, 0.0, 0.0, 0.0, 5),
+                                        cloud = com.nexplay.dronepreflight.data.SourceStat(30.0, 20.0, 40.0, 5.0, 5),
+                                        visibility = com.nexplay.dronepreflight.data.SourceStat(15000.0, 12000.0, 20000.0, 2000.0, 5),
+                                        stormVotes = 0, fogVotes = 0, kpIndex = 2.1,
+                                        kpSource = "test", kpTotalSources = 5,
+                                    ),
+                                    assessment = com.nexplay.dronepreflight.data.FlightAssessment(
+                                        overall = com.nexplay.dronepreflight.data.Verdict.GO,
+                                        checks = emptyList(),
+                                    ),
+                                    outlook = emptyList(),
+                                    units = units,
+                                )
+                            }.getOrNull()
+                            apiTestStatus = when {
+                                r == null -> "✗ Błąd wywołania"
+                                r.isFailure -> "✗ ${r.exceptionOrNull()?.message?.take(80)}"
+                                else -> {
+                                    val text = r.getOrNull() ?: "?"
+                                    CopilotSpeaker.init(context)
+                                    CopilotSpeaker.say(text)
+                                    "✓ ${text.take(80)}…"
+                                }
+                            }
+                        }
+                    }) { Text("Test Claude") }
+                }
+                apiTestStatus?.let {
+                    Text(
+                        it,
+                        color = if (it.startsWith("✓")) VerdictColors.Go else VerdictColors.NoGo,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
         }
 

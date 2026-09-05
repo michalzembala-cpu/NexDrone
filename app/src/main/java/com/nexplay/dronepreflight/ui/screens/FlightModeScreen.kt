@@ -103,16 +103,31 @@ fun FlightModeScreen(
             if (store.assistantEnabled.first()) {
                 CopilotSpeaker.init(context)
                 val total = (goSecs + cautSecs + noGoSecs).coerceAtLeast(1)
-                val msg = AiCopilot.postFlight(
-                    pilotName = store.pilotName.first(),
-                    elapsedSec = (elapsedMs / 1000).toInt(),
-                    maxWindMs = maxWind.takeIf { it > 0.0 },
-                    maxGustMs = maxGust.takeIf { it > 0.0 },
-                    units = units,
-                    goPct = (goSecs * 100 / total),
-                    outlook = emptyList<HourlyOutlook>(),
-                )
-                CopilotSpeaker.say(msg.text)
+                val goPct = (goSecs * 100 / total)
+                val useLlm = store.assistantUseLlm.first()
+                val apiKey = store.assistantApiKey.first()
+                val name = store.pilotName.first()
+                val elapsed = (elapsedMs / 1000).toInt()
+                val maxW = maxWind.takeIf { it > 0.0 }
+                val maxG = maxGust.takeIf { it > 0.0 }
+
+                val text = if (useLlm && apiKey.isNotBlank()) {
+                    com.nexplay.dronepreflight.copilot.ClaudeCopilot.postFlight(
+                        apiKey = apiKey,
+                        pilotName = name,
+                        elapsedSec = elapsed,
+                        maxWindMs = maxW,
+                        maxGustMs = maxG,
+                        units = units,
+                        goPct = goPct,
+                        outlook = emptyList(),
+                    ).getOrElse {
+                        AiCopilot.postFlight(name, elapsed, maxW, maxG, units, goPct, emptyList()).text
+                    }
+                } else {
+                    AiCopilot.postFlight(name, elapsed, maxW, maxG, units, goPct, emptyList<HourlyOutlook>()).text
+                }
+                CopilotSpeaker.say(text)
             }
         }
         FlightSummaryDialog(
