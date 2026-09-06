@@ -59,6 +59,18 @@ class SettingsStore(private val context: Context) {
         // NexHub (backend wspolny z NexPlay)
         val HubUrl = stringPreferencesKey("hub_url")
         val HubToken = stringPreferencesKey("hub_token")
+        // Dedup ostatnich powiadomien — nie fire dwa razy tego samego
+        val LastNotifiedGoWindow = stringPreferencesKey("last_go_window_notif")
+        val LastNotifiedGoEnding = stringPreferencesKey("last_go_ending_notif")
+    }
+
+    val lastNotifiedGoWindow: Flow<String> = context.dataStore.data.map { it[Keys.LastNotifiedGoWindow] ?: "" }
+    suspend fun setLastNotifiedGoWindow(sig: String) {
+        context.dataStore.edit { it[Keys.LastNotifiedGoWindow] = sig }
+    }
+    val lastNotifiedGoEnding: Flow<String> = context.dataStore.data.map { it[Keys.LastNotifiedGoEnding] ?: "" }
+    suspend fun setLastNotifiedGoEnding(sig: String) {
+        context.dataStore.edit { it[Keys.LastNotifiedGoEnding] = sig }
     }
 
     val hubUrl: Flow<String> = context.dataStore.data.map { it[Keys.HubUrl] ?: "" }

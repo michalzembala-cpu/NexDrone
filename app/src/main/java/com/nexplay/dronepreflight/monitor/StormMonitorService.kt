@@ -44,6 +44,7 @@ class StormMonitorService : Service() {
     private var loop: Job? = null
     private var lastVerdict: Verdict = Verdict.GO
     private var endingSoonNotified: Boolean = false
+    @Volatile private var lastAlertText: String = ""
 
     override fun onCreate() {
         super.onCreate()
@@ -242,7 +243,11 @@ class StormMonitorService : Service() {
             .setDefaults(NotificationCompat.DEFAULT_VIBRATE or NotificationCompat.DEFAULT_SOUND)
             .setAutoCancel(true)
             .setContentIntent(open)
+            .setOnlyAlertOnce(true)  // po zmianie treści aktualizuj po cichu, nie dzwoń znowu
             .build()
+        // Dedup — nie fire tej samej treści dwa razy pod rząd
+        if (text == lastAlertText) return
+        lastAlertText = text
         nm.notify(NOTIF_ID_ALERT, n)
     }
 

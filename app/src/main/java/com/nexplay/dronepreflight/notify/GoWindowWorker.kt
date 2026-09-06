@@ -69,12 +69,18 @@ class GoWindowWorker(
         if (bestLen >= 2 && bestStart >= 0) {
             val start = next24h[bestStart].first.toLocalDateTime(TimeZone.currentSystemDefault())
             val end = next24h[bestStart + bestLen - 1].first.toLocalDateTime(TimeZone.currentSystemDefault())
-            notify(
-                title = "Okno GO w najbliższych 24h",
-                text = "%02d:00 – %02d:00 (%d h). Warunki spełniają Twoje limity BSP.".format(
-                    start.hour, (end.hour + 1) % 24, bestLen,
-                ),
-            )
+            val sig = "%02d-%02d-%d".format(start.hour, (end.hour + 1) % 24, bestLen)
+            val lastSig = settings.lastNotifiedGoWindow.first()
+            // Dedup — nie powtarzaj tego samego okna
+            if (sig != lastSig) {
+                notify(
+                    title = "Okno GO w najbliższych 24h",
+                    text = "%02d:00 – %02d:00 (%d h). Warunki spełniają Twoje limity BSP.".format(
+                        start.hour, (end.hour + 1) % 24, bestLen,
+                    ),
+                )
+                settings.setLastNotifiedGoWindow(sig)
+            }
         }
 
         // Alert "GO kończy się za X min" — gdy obecna godzina jest GO, a w ciągu 90 min pogorszenie
@@ -89,13 +95,22 @@ class GoWindowWorker(
             if (firstBad != null) {
                 val minutesLeft = max(0, ((firstBad.first.toEpochMilliseconds() - nowMs) / 60_000).toInt())
                 val badLocal = firstBad.first.toLocalDateTime(TimeZone.currentSystemDefault())
-                notify(
-                    channelId = "go_ending",
-                    channelName = "Koniec okna GO",
-                    notifId = 1002,
-                    title = "⏰ Okno GO kończy się za $minutesLeft min",
-                    text = "O ${"%02d:%02d".format(badLocal.hour, badLocal.minute)} warunki przestaną spełniać limity Twojego BSP.",
-                )
+                // Dedup — okno endujące o tej samej godzinie tylko raz
+                val sig = "%02d-%02d".format(badLocal.hour, badLocal.minute)
+                val lastSig = settings.lastNotifiedGoEnding.first()
+                if (sig != lastSig) {
+                    notify(
+                        channelId = "go_ending",
+                        channelName = "Koniec okna GO",
+                        notifId = 1002,
+                        title = "⏰ Okno GO kończy się za $minutesLeft min",
+                        text = "O ${"%02d:%02d".format(badLocal.hour, badLocal.minute)} warunki przestaną spełniać limity Twojego BSP.",
+                    )
+                    settings.setLastNotifiedGoEnding(sig)
+                }
+            } else {
+                // Reset — jeżeli już nie ma zbliżającego się końca, wyczyść dedup
+                settings.setLastNotifiedGoEnding("")
             }
         }
 
@@ -138,6 +153,7 @@ class GoWindowWorker(
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(pi)
             .setAutoCancel(true)
+            .setOnlyAlertOnce(true)  // aktualizuj po cichu — bez ponownego dźwięku/wibracji
             .build()
         nm.notify(notifId, n)
     }
