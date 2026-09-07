@@ -112,6 +112,9 @@ fun HistoryScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                item(key = "level") {
+                    PilotLevelCard(state.flightLog)
+                }
                 item(key = "stats") {
                     FlightStatsCard(state.flightLog)
                 }
