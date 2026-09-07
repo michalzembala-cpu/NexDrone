@@ -9,6 +9,9 @@ data class SavedLocation(
     val lat: Double,
     val lon: Double,
     val isDefault: Boolean = false,
+    val rating: Int = 0,           // 0-5 gwiazdek, per użytkownika
+    val notes: String = "",        // "dobre do zachodu", "wiatr od wschodu" etc.
+    val bestConditions: String = "", // "poranek", "wieczór", "słaby wiatr"
 )
 
 @Serializable

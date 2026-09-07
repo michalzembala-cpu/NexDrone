@@ -107,6 +107,15 @@ fun PulpitScreen(
         }
 
         if (state.snapshot != null) {
+            // NexDrone Command Center — one-glance summary
+            state.assessment?.let { asmt ->
+                CommandCenterCard(
+                    snap = state.snapshot,
+                    assessment = asmt,
+                    bestWindow = state.bestWindow,
+                    units = units,
+                )
+            }
             WeatherMedianCard(state.snapshot, units)
             KpMedianCard(state.snapshot)
             DataSourcesCard(state.snapshot, units)
@@ -122,6 +131,10 @@ fun PulpitScreen(
             if (currentMission in listOf("film", "photo", "landscape")) {
                 ShotPlannerCard(state.snapshot)
             }
+            // Sun & Light — wschód/zachód/golden hour (przydatne dla filmowania i planowania)
+            SunLightCard(state.snapshot)
+            // Kalkulator lotu — czy dam radę wrócić przy tym wietrze?
+            FlightCalculatorCard(state.snapshot)
             ChecklistProgressCard(checkedCount = state.checked.intersect(AllChecklistIds).size)
             CompassCard(windDirectionDeg = state.snapshot.windDir.median)
             MonitoringCard(

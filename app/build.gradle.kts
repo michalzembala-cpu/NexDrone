@@ -13,8 +13,8 @@ android {
         applicationId = "com.nexplay.dronepreflight"
         minSdk = 24
         targetSdk = 34
-        versionCode = 33
-        versionName = "1.3.5"
+        versionCode = 34
+        versionName = "1.4.0"
         vectorDrawables { useSupportLibrary = true }
     }
 
@@ -74,6 +74,9 @@ dependencies {
     implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.12")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
+
+    // Sun/moon calculator (wschód/zachód, golden/blue hour) — pure Java, tiny
+    implementation("org.shredzone.commons:commons-suncalc:3.11")
 
     // Location
     implementation("com.google.android.gms:play-services-location:21.3.0")
