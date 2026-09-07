@@ -249,6 +249,8 @@ class StormMonitorService : Service() {
         if (text == lastAlertText) return
         lastAlertText = text
         nm.notify(NOTIF_ID_ALERT, n)
+        // Wibracja przy alarmie — mocna, żeby nie przegapić w polu
+        com.nexplay.dronepreflight.notify.Haptics.vibrate(this, com.nexplay.dronepreflight.notify.Haptics.Kind.ALERT)
     }
 
     override fun onDestroy() {
