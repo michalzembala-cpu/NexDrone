@@ -472,10 +472,24 @@ class PreflightViewModel(app: Application) : AndroidViewModel(app) {
 
     // ── Historia lotów ──
 
-    fun saveCurrentFlight(note: String, durationMinutes: Int?) {
+    fun saveCurrentFlight(
+        note: String,
+        durationMinutes: Int?,
+        goPct: Int? = null,
+    ) {
         val snap = _state.value.snapshot ?: return
         val assess = _state.value.assessment ?: return
         viewModelScope.launch {
+            val confidence = com.nexplay.dronepreflight.data.ConfidenceCalculator.calculate(snap).percent
+            val checked = _state.value.checked.intersect(com.nexplay.dronepreflight.ui.AllChecklistIds)
+            val score = com.nexplay.dronepreflight.data.FlightScorer.compute(
+                startVerdict = assess.overall,
+                confidencePct = confidence,
+                checklistDone = checked.size,
+                checklistTotal = com.nexplay.dronepreflight.ui.AllChecklistIds.size,
+                goPctDuringFlight = goPct ?: 100,
+                durationSec = (durationMinutes ?: 0) * 60,
+            )
             settings.addFlight(
                 FlightLogEntry(
                     id = "flt_${System.currentTimeMillis()}",
@@ -488,6 +502,8 @@ class PreflightViewModel(app: Application) : AndroidViewModel(app) {
                     kpIndex = snap.kpIndex,
                     note = note,
                     durationMinutes = durationMinutes,
+                    score = score.total,
+                    goPct = goPct,
                 )
             )
         }

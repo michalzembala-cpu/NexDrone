@@ -1,7 +1,19 @@
 package com.nexplay.dronepreflight.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -182,6 +194,82 @@ fun SpotIntelligencePanel(
                 color = riskColor,
                 bold = true,
             )
+
+            Spacer(Modifier.height(14.dp))
+            HorizontalDivider(color = OpsColors.Grid)
+            Spacer(Modifier.height(10.dp))
+
+            // AI Analiza — Gemini analizuje ten spot i mówi głośno
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
+            var aiAnalysis by remember { mutableStateOf<String?>(null) }
+            var aiLoading by remember { mutableStateOf(false) }
+
+            OutlinedButton(
+                onClick = {
+                    aiLoading = true
+                    aiAnalysis = "Analizuję…"
+                    scope.launch {
+                        try {
+                            val store = com.nexplay.dronepreflight.data.SettingsStore(context)
+                            val key = store.assistantGeminiKey.first()
+                            if (key.isBlank()) {
+                                aiAnalysis = "Wpisz klucz Gemini w Ustawieniach → AI Co-pilot"
+                                return@launch
+                            }
+                            val mission = store.activeMission.first()
+                            val prompt = buildString {
+                                appendLine("Zanalizuj to miejsce jako Jarvis — max 3 zdania po polsku.")
+                                appendLine("Współrzędne: %.4f, %.4f".format(pinnedCoords.first, pinnedCoords.second))
+                                appendLine("Nazwa: ${snap.locationName}")
+                                appendLine("Werdykt: ${verdictLabel}, pewność ${confidence.percent}%")
+                                snap.wind.median?.let { appendLine("Wiatr: %.1f m/s".format(it)) }
+                                snap.gust.median?.let { appendLine("Porywy: %.1f m/s".format(it)) }
+                                snap.visibility.median?.let { appendLine("Widoczność: %.1f km".format(it/1000)) }
+                                if (mission != "general") appendLine("Wybrana misja: $mission")
+                                bestWindow?.let { appendLine("Najlepsze okno: %02d-%02d".format(it.startLocal.hour, (it.endLocal.hour+1)%24)) }
+                                append("Powiedz czy to dobre miejsce, na co uważać, kiedy najlepiej lecieć.")
+                            }
+                            val name = store.pilotName.first()
+                            val r = com.nexplay.dronepreflight.copilot.JarvisChat.ask(key, name, prompt, "luzny")
+                            r.onSuccess { text ->
+                                aiAnalysis = text
+                                com.nexplay.dronepreflight.copilot.CopilotSpeaker.init(context)
+                                com.nexplay.dronepreflight.copilot.CopilotSpeaker.say(text)
+                            }.onFailure {
+                                Log.w("SpotAI", "failed", it)
+                                aiAnalysis = "Błąd: ${it.message?.take(80)}"
+                            }
+                        } finally {
+                            aiLoading = false
+                        }
+                    }
+                },
+                enabled = !aiLoading,
+                modifier = Modifier.fillMaxWidth().height(46.dp),
+            ) {
+                if (aiLoading) {
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Analizuję…")
+                } else {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = OpsColors.Accent)
+                    Spacer(Modifier.width(8.dp))
+                    Text("🎙 AI Analiza tego miejsca")
+                }
+            }
+            aiAnalysis?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    it,
+                    color = OpsColors.TextPrimary,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(OpsColors.BgPanelRaised, MaterialTheme.shapes.small)
+                        .padding(10.dp),
+                )
+            }
         }
     }
 }

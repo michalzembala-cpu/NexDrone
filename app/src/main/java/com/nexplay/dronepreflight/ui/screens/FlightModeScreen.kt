@@ -48,7 +48,7 @@ fun FlightModeScreen(
     onStartMonitor: () -> Unit,
     onStopMonitor: () -> Unit,
     onRefresh: () -> Unit = {},
-    onSaveFlight: (note: String, minutes: Int?) -> Unit = { _, _ -> },
+    onSaveFlight: (note: String, minutes: Int?, goPct: Int) -> Unit = { _, _, _ -> },
 ) {
     val startedAt = rememberSaveable { System.currentTimeMillis() }
     var elapsedMs by remember { mutableStateOf(0L) }
@@ -133,7 +133,9 @@ fun FlightModeScreen(
             units = units,
             onSave = { note ->
                 val minutes = ((elapsedMs / 1000 / 60).toInt()).coerceAtLeast(1)
-                onSaveFlight(note, minutes)
+                val total = (goSecs + cautSecs + noGoSecs).coerceAtLeast(1)
+                val goPct = (goSecs * 100 / total)
+                onSaveFlight(note, minutes, goPct)
                 showSummary = false
                 onDismiss()
             },
@@ -498,12 +500,39 @@ private fun FlightSummaryDialog(
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                 )
-                Text(
-                    durText,
-                    color = OpsColors.TextPrimary,
-                    fontSize = 56.sp,
-                    fontWeight = FontWeight.Bold,
+
+                // NexDrone Score — proxy: pogoda GO + długość + verdict distribution
+                val prelimScore = com.nexplay.dronepreflight.data.FlightScorer.compute(
+                    startVerdict = com.nexplay.dronepreflight.data.Verdict.GO,
+                    confidencePct = 80,
+                    checklistDone = 0, checklistTotal = 0,
+                    goPctDuringFlight = goPct,
+                    durationSec = secs,
                 )
+                val scoreColor = when {
+                    prelimScore.total >= 75 -> VerdictColors.Go
+                    prelimScore.total >= 50 -> VerdictColors.Caution
+                    else -> VerdictColors.NoGo
+                }
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text(
+                        durText,
+                        color = OpsColors.TextPrimary,
+                        fontSize = 44.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                        Text("NEXDRONE SCORE", color = OpsColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            "${prelimScore.total}",
+                            color = scoreColor,
+                            fontSize = 44.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text("/100 · ${prelimScore.label}", color = scoreColor, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    }
+                }
                 Text(
                     "Czas trwania lotu",
                     color = OpsColors.TextSecondary,

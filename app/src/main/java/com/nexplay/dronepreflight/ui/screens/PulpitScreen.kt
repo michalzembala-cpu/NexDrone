@@ -166,6 +166,7 @@ fun PulpitScreen(
             snap = state.snapshot,
             assessment = state.assessment,
             outlook = state.hourlyOutlook,
+            flightLog = state.flightLog,
             onDismiss = { showMic = false },
         )
     }

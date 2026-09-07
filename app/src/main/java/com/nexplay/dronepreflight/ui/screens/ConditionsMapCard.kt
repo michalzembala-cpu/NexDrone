@@ -42,6 +42,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import com.nexplay.dronepreflight.data.AggregatedSnapshot
 import com.nexplay.dronepreflight.data.DroneLimits
 import com.nexplay.dronepreflight.data.FlightAssessment
+import com.nexplay.dronepreflight.data.SavedLocation
 import com.nexplay.dronepreflight.data.Verdict
 import com.nexplay.dronepreflight.data.WindGridFetcher
 import com.nexplay.dronepreflight.data.WindPoint
@@ -68,6 +69,8 @@ fun ConditionsMapCard(
     snap: AggregatedSnapshot?,
     assessment: FlightAssessment?,
     limits: DroneLimits = DroneLimits(),
+    savedLocations: List<SavedLocation> = emptyList(),
+    rangeKm: Double = 1.0,
     pinnedCoords: Pair<Double, Double>? = null,
     onPin: (Double, Double) -> Unit = { _, _ -> },
     onClearPin: () -> Unit = {},
@@ -151,12 +154,29 @@ fun ConditionsMapCard(
     }
 
     // Aktualizuj heatmap gdy zmieni się lokalizacja, werdykt, lub pinezka
-    LaunchedEffect(snap.latitude, snap.longitude, verdict, pinnedCoords) {
+    LaunchedEffect(snap.latitude, snap.longitude, verdict, pinnedCoords, savedLocations.size, rangeKm) {
         mapView.overlays.removeAll { it is Polygon }
         mapView.addConditionCircle(snap.latitude, snap.longitude, 15.0, verdictColor.copy(alpha = 0.10f))
         mapView.addConditionCircle(snap.latitude, snap.longitude, 8.0, verdictColor.copy(alpha = 0.20f))
         mapView.addConditionCircle(snap.latitude, snap.longitude, 3.0, verdictColor.copy(alpha = 0.35f))
         mapView.addConditionCircle(snap.latitude, snap.longitude, 0.3, OpsColors.Accent)
+
+        // Krąg zasięgu (dashed via double ring)
+        if (rangeKm > 0.05) {
+            mapView.addConditionCircle(snap.latitude, snap.longitude, rangeKm, OpsColors.Accent.copy(alpha = 0.35f))
+            mapView.addConditionCircle(snap.latitude, snap.longitude, rangeKm * 0.95, OpsColors.BgPanel.copy(alpha = 0.0f))
+        }
+
+        // Zapisane lokalizacje — żółte pinezki (poza aktywną)
+        savedLocations.forEach { loc ->
+            val isActive = kotlin.math.abs(loc.lat - snap.latitude) < 0.001 &&
+                kotlin.math.abs(loc.lon - snap.longitude) < 0.001
+            if (!isActive) {
+                mapView.addConditionCircle(loc.lat, loc.lon, 0.5, OpsColors.Amber)
+                mapView.addConditionCircle(loc.lat, loc.lon, 0.25, OpsColors.BgPanel)
+            }
+        }
+
         // Marker pinezki (jeśli jest) — biały punkt z outline w kolorze werdyktu
         pinnedCoords?.let { (lat, lon) ->
             mapView.addConditionCircle(lat, lon, 0.4, Color.White)

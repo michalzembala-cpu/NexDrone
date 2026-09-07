@@ -52,6 +52,9 @@ fun FlightStatsCard(entries: List<FlightLogEntry>) {
     val temps = entries.mapNotNull { it.tempC }
     val winds = entries.mapNotNull { it.windMs }
     val kps = entries.mapNotNull { it.kpIndex }
+    val scores = entries.mapNotNull { it.score }
+    val avgScore = if (scores.isNotEmpty()) scores.average().toInt() else null
+    val bestScore = scores.maxOrNull()
 
     // Bar chart — ostatnie 12 miesięcy
     val monthCounts = IntArray(12)
@@ -69,11 +72,35 @@ fun FlightStatsCard(entries: List<FlightLogEntry>) {
         modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
     ) {
         Column(Modifier.padding(16.dp)) {
-            Text(
-                "TWOJE STATYSTYKI",
-                color = OpsColors.TextSecondary,
-                style = MaterialTheme.typography.labelMedium,
-            )
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(
+                    "TWOJE STATYSTYKI",
+                    color = OpsColors.TextSecondary,
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                avgScore?.let {
+                    val scoreColor = when {
+                        it >= 75 -> com.nexplay.dronepreflight.ui.theme.VerdictColors.Go
+                        it >= 50 -> com.nexplay.dronepreflight.ui.theme.VerdictColors.Caution
+                        else -> com.nexplay.dronepreflight.ui.theme.VerdictColors.NoGo
+                    }
+                    Text(
+                        "Ø $it/100",
+                        color = scoreColor,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    )
+                    bestScore?.let { b ->
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            "★ $b",
+                            color = OpsColors.TextSecondary,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+                }
+            }
             Spacer(Modifier.height(12.dp))
 
             // Rząd 1: łączny czas + liczba lotów

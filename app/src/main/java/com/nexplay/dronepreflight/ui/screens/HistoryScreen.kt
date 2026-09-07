@@ -190,6 +190,20 @@ private fun FlightRow(
                         color = OpsColors.TextPrimary,
                     )
                     Spacer(Modifier.weight(1f))
+                    entry.score?.let { score ->
+                        val scoreColor = when {
+                            score >= 75 -> VerdictColors.Go
+                            score >= 50 -> VerdictColors.Caution
+                            else -> VerdictColors.NoGo
+                        }
+                        Text(
+                            "$score/100",
+                            color = scoreColor,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        )
+                        Spacer(Modifier.width(10.dp))
+                    }
                     Text(
                         entry.verdict,
                         color = color,

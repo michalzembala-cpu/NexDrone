@@ -166,7 +166,7 @@ class MainActivity : ComponentActivity() {
                         onStartMonitor = { StormMonitorService.start(applicationContext) },
                         onStopMonitor = { StormMonitorService.stop(applicationContext) },
                         onRefresh = { vm.refresh() },
-                        onSaveFlight = { note, minutes -> vm.saveCurrentFlight(note, minutes) },
+                        onSaveFlight = { note, minutes, goPct -> vm.saveCurrentFlight(note, minutes, goPct) },
                     )
                 }
 
@@ -263,6 +263,7 @@ class MainActivity : ComponentActivity() {
                                 hourlyOutlook = state.hourlyOutlook,
                                 bestWindow = state.bestWindow,
                                 units = state.units,
+                                savedLocations = state.savedLocations,
                                 pinnedCoords = state.pinnedCoords,
                                 onPin = { lat, lon -> vm.setPinnedLocation(lat, lon) },
                                 onClearPin = { vm.clearPinnedLocation() },

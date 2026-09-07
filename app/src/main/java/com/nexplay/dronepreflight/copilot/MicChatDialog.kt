@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat
 import com.nexplay.dronepreflight.assistant.VoiceIO
 import com.nexplay.dronepreflight.data.AggregatedSnapshot
 import com.nexplay.dronepreflight.data.FlightAssessment
+import com.nexplay.dronepreflight.data.FlightLogEntry
 import com.nexplay.dronepreflight.data.SettingsStore
 import com.nexplay.dronepreflight.data.Verdict
 import com.nexplay.dronepreflight.ui.HourlyOutlook
@@ -38,6 +39,7 @@ fun MicChatDialog(
     snap: AggregatedSnapshot?,
     assessment: FlightAssessment?,
     outlook: List<HourlyOutlook>,
+    flightLog: List<FlightLogEntry> = emptyList(),
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -96,6 +98,33 @@ fun MicChatDialog(
                         appendLine("Prognoza wiatr next 6h: " + next6.joinToString(", ") {
                             "%02d:00=%.1f".format(it.timeLocal.hour, it.windMs ?: 0.0)
                         })
+                    }
+
+                    // Historia lotów — Jarvis wie o poprzednich lotach w tej lokalizacji
+                    val here = flightLog.filter {
+                        snap?.locationName?.let { loc -> it.locationName.contains(loc.take(15), ignoreCase = true) } == true
+                    }.take(3)
+                    if (here.isNotEmpty()) {
+                        appendLine("Poprzednie loty w tej lokalizacji:")
+                        val df = java.text.SimpleDateFormat("d.MM HH:mm", java.util.Locale("pl"))
+                        here.forEach { e ->
+                            val bits = buildList {
+                                add(df.format(java.util.Date(e.timestamp)))
+                                e.durationMinutes?.let { add("${it} min") }
+                                e.windMs?.let { add("wiatr %.1f".format(it)) }
+                                e.score?.let { add("$it/100") }
+                            }
+                            appendLine("- " + bits.joinToString(", "))
+                            if (e.note.isNotBlank()) appendLine("  notatka: ${e.note.take(80)}")
+                        }
+                    }
+                    val allRecent = flightLog.take(5)
+                    if (allRecent.isNotEmpty() && here.isEmpty()) {
+                        appendLine("Ostatnie loty (dowolne lokalizacje):")
+                        val df = java.text.SimpleDateFormat("d.MM", java.util.Locale("pl"))
+                        allRecent.forEach { e ->
+                            appendLine("- ${df.format(java.util.Date(e.timestamp))}: ${e.locationName.take(20)}, ${e.durationMinutes ?: "?"} min, score ${e.score ?: "?"}")
+                        }
                     }
 
                     // Wybrana misja

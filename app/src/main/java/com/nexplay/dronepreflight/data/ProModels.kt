@@ -38,4 +38,6 @@ data class FlightLogEntry(
     val kpIndex: Double? = null,
     val note: String = "",
     val durationMinutes: Int? = null,
+    val score: Int? = null,          // NexDrone Score 0-100 (opcjonalny — starsze wpisy bez)
+    val goPct: Int? = null,          // % czasu w werdykcie GO podczas lotu
 )
