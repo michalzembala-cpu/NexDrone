@@ -2,6 +2,7 @@ package com.nexplay.dronepreflight.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -74,10 +75,47 @@ fun PulpitScreen(
 ) {
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var showMic by rememberSaveable { mutableStateOf(false) }
+    var activeSubview by rememberSaveable { mutableStateOf<String?>(null) }
     val localContext = LocalContext.current
     val settingsStore = remember { com.nexplay.dronepreflight.data.SettingsStore(localContext) }
     val currentMission by settingsStore.activeMission.collectAsState(initial = "general")
     val scope = rememberCoroutineScope()
+
+    // Podekran — pokazujemy zamiast Pulpitu gdy user wybierze kafelek
+    if (activeSubview != null && state.snapshot != null) {
+        SubviewScreen(
+            title = when(activeSubview) {
+                "details" -> "SZCZEGÓŁY POGODY"
+                "forecast" -> "PROGNOZA GODZINOWA"
+                "tools" -> "NARZĘDZIA MISJI"
+                else -> ""
+            },
+            onBack = { activeSubview = null },
+        ) {
+            when (activeSubview) {
+                "details" -> {
+                    WeatherMedianCard(state.snapshot, units)
+                    KpMedianCard(state.snapshot)
+                    DataSourcesCard(state.snapshot, units)
+                }
+                "forecast" -> {
+                    if (state.hourlyOutlook.isNotEmpty()) {
+                        Next3HoursCard(state.hourlyOutlook, units)
+                        HourlyChartCard(state.hourlyOutlook, state.limits, units)
+                    }
+                }
+                "tools" -> {
+                    if (currentMission in listOf("film", "photo", "landscape")) {
+                        ShotPlannerCard(state.snapshot)
+                    }
+                    SunLightCard(state.snapshot)
+                    FlightCalculatorCard(state.snapshot)
+                    CompassCard(windDirectionDeg = state.snapshot.windDir.median)
+                }
+            }
+        }
+        return
+    }
 
     Box(Modifier.fillMaxSize()) {
     Column(
@@ -134,27 +172,26 @@ fun PulpitScreen(
                     AnomalyCard(anomalies)
                 }
             }
-            WeatherMedianCard(state.snapshot, units)
-            KpMedianCard(state.snapshot)
-            DataSourcesCard(state.snapshot, units)
+            // ESSENTIALS — najważniejsze na wierzchu:
             VerdictCard(state, units)
-            if (state.hourlyOutlook.isNotEmpty()) {
-                Next3HoursCard(state.hourlyOutlook, units)
-            }
             BestTimeCard(state.bestWindow, state.hourlyOutlook)
-            if (state.hourlyOutlook.isNotEmpty()) {
-                HourlyChartCard(state.hourlyOutlook, state.limits, units)
+
+            // Kafelki podekranów — klik = wejście, nie rozwijanie
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionTile("🌡", "SZCZEGÓŁY POGODY", Modifier.weight(1f)) { activeSubview = "details" }
+                if (state.hourlyOutlook.isNotEmpty()) {
+                    SectionTile("📈", "PROGNOZA", Modifier.weight(1f)) { activeSubview = "forecast" }
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
             }
-            // Shot Planner — tylko dla misji foto/film/krajobraz
-            if (currentMission in listOf("film", "photo", "landscape")) {
-                ShotPlannerCard(state.snapshot)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionTile("📸", "NARZĘDZIA", Modifier.weight(1f)) { activeSubview = "tools" }
+                Spacer(Modifier.weight(1f))
             }
-            // Sun & Light — wschód/zachód/golden hour (przydatne dla filmowania i planowania)
-            SunLightCard(state.snapshot)
-            // Kalkulator lotu — czy dam radę wrócić przy tym wietrze?
-            FlightCalculatorCard(state.snapshot)
+
+            // ✅ CHECKLIST + MONITORING — inline pod misjami
             ChecklistProgressCard(checkedCount = state.checked.intersect(AllChecklistIds).size)
-            CompassCard(windDirectionDeg = state.snapshot.windDir.median)
             MonitoringCard(
                 active = state.monitoringActive,
                 onStart = onStartMonitor,
@@ -1040,6 +1077,69 @@ private fun BriefingButton(state: UiState, units: com.nexplay.dronepreflight.dat
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(top = 4.dp),
         )
+    }
+}
+
+@Composable
+private fun SectionTile(
+    emoji: String,
+    label: String,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = OpsColors.BgPanel),
+        border = BorderStroke(1.dp, OpsColors.Grid),
+        shape = MaterialTheme.shapes.medium,
+        modifier = modifier
+            .height(90.dp)
+            .clickable { onClick() },
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(12.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(emoji, fontSize = 28.sp)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                label,
+                color = OpsColors.TextPrimary,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(">", color = OpsColors.Accent, style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+@Composable
+private fun SubviewScreen(
+    title: String,
+    onBack: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                Text("←", color = OpsColors.Accent, fontSize = 24.sp)
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                title,
+                color = OpsColors.TextPrimary,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        content()
+        Spacer(Modifier.height(24.dp))
     }
 }
 
