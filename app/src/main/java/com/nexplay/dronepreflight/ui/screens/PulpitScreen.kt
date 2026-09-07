@@ -74,7 +74,8 @@ fun PulpitScreen(
 ) {
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var showMic by rememberSaveable { mutableStateOf(false) }
-    val settingsStore = remember { com.nexplay.dronepreflight.data.SettingsStore(LocalContext.current) }
+    val localContext = LocalContext.current
+    val settingsStore = remember { com.nexplay.dronepreflight.data.SettingsStore(localContext) }
     val currentMission by settingsStore.activeMission.collectAsState(initial = "general")
     val scope = rememberCoroutineScope()
 

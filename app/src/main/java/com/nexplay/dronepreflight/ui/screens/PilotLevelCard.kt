@@ -3,6 +3,7 @@ package com.nexplay.dronepreflight.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -160,5 +161,3 @@ private fun formatMinutes(min: Int): String {
     return if (h > 0) "${h}h ${m}m" else "${m}m"
 }
 
-// Modifier.alpha helper
-private fun Modifier.alpha(a: Float): Modifier = this.then(androidx.compose.ui.draw.alpha(a))

@@ -2,6 +2,7 @@ package com.nexplay.dronepreflight.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -105,6 +106,3 @@ private fun MissionTile(
     }
 }
 
-// Modifier.border helper — dostępny w androidx.compose.foundation.border ale importuję tu
-private fun Modifier.border(width: androidx.compose.ui.unit.Dp, color: Color, shape: androidx.compose.ui.graphics.Shape): Modifier =
-    this.then(androidx.compose.foundation.border(width, color, shape))
