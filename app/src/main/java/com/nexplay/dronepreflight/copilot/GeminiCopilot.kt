@@ -44,9 +44,10 @@ object GeminiCopilot {
         outlook: List<HourlyOutlook>,
         units: DisplayUnits,
         personality: String = "luzny",
+        mission: String = "general",
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
-            call(apiKey, personality, CopilotPrompts.briefing(pilotName, snap, assessment, outlook, units))
+            call(apiKey, personality, CopilotPrompts.briefing(pilotName, snap, assessment, outlook, units, mission))
         }
     }
 

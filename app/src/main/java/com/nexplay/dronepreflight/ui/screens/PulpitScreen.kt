@@ -74,6 +74,9 @@ fun PulpitScreen(
 ) {
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var showMic by rememberSaveable { mutableStateOf(false) }
+    val settingsStore = remember { com.nexplay.dronepreflight.data.SettingsStore(LocalContext.current) }
+    val currentMission by settingsStore.activeMission.collectAsState(initial = "general")
+    val scope = rememberCoroutineScope()
 
     Box(Modifier.fillMaxSize()) {
     Column(
@@ -89,6 +92,12 @@ fun PulpitScreen(
             loading = state.loading,
             onDateClick = { showDatePicker = true },
             onRefresh = onRefresh,
+        )
+
+        // Wybór misji — zmienia priorytety Jarvis'a i wskazówki
+        MissionCard(
+            selectedId = currentMission,
+            onSelect = { id -> scope.launch { settingsStore.setActiveMission(id) } },
         )
 
         state.error?.let { ErrorCard(it) }

@@ -51,9 +51,18 @@ CZEGO NIE ROBIĆ:
         assessment: FlightAssessment,
         outlook: List<HourlyOutlook>,
         units: DisplayUnits,
+        mission: String = "general",
     ): String = buildString {
         appendLine("Wygeneruj krótki pre-flight briefing.")
         appendLine()
+        val missionContext = when (mission) {
+            "film" -> "Misja: FILMOWANIE. Priorytety: stabilność wiatru, jakość światła, płynność ujęć. Wspomnij o wietrze bocznym jeśli istotny."
+            "photo" -> "Misja: ZDJĘCIA. Priorytety: przejrzystość powietrza, niska wilgotność, dobre światło."
+            "recon" -> "Misja: REKONESANS. Priorytety: dobra widoczność, stabilny GPS (nizki KP), średni zasięg."
+            "landscape" -> "Misja: KRAJOBRAZ. Priorytety: przejrzystość, słaby wiatr, dobry kadr."
+            else -> ""
+        }
+        if (missionContext.isNotEmpty()) appendLine(missionContext)
         if (pilotName.isNotBlank()) appendLine("Pilot: $pilotName")
         appendLine("Werdykt: ${verdictLabel(assessment.overall)}")
         appendLine("Wiatr: ${snap.wind.median?.let { formatWind(it, units.wind) } ?: "brak"}")

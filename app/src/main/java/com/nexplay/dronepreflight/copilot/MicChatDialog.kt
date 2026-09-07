@@ -98,6 +98,19 @@ fun MicChatDialog(
                         })
                     }
 
+                    // Wybrana misja
+                    val mission = store.activeMission.first()
+                    if (mission != "general") {
+                        val missionText = when (mission) {
+                            "film" -> "Filmowanie (priorytet: stabilne warunki, boczny wiatr)"
+                            "photo" -> "Zdjęcia (priorytet: przejrzystość, światło)"
+                            "recon" -> "Rekonesans (priorytet: widoczność, GPS)"
+                            "landscape" -> "Krajobraz (priorytet: przejrzystość, słaby wiatr)"
+                            else -> mission
+                        }
+                        appendLine("Wybrana misja: $missionText")
+                    }
+
                     // Dane z NexHub (wspólny profil z NexPlay)
                     val hubUrl = store.hubUrl.first()
                     val hubToken = store.hubToken.first()

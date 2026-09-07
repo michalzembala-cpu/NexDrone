@@ -62,6 +62,12 @@ class SettingsStore(private val context: Context) {
         // Dedup ostatnich powiadomien — nie fire dwa razy tego samego
         val LastNotifiedGoWindow = stringPreferencesKey("last_go_window_notif")
         val LastNotifiedGoEnding = stringPreferencesKey("last_go_ending_notif")
+        val ActiveMission = stringPreferencesKey("active_mission")  // film/photo/recon/landscape/general
+    }
+
+    val activeMission: Flow<String> = context.dataStore.data.map { it[Keys.ActiveMission] ?: "general" }
+    suspend fun setActiveMission(m: String) {
+        context.dataStore.edit { it[Keys.ActiveMission] = m }
     }
 
     val lastNotifiedGoWindow: Flow<String> = context.dataStore.data.map { it[Keys.LastNotifiedGoWindow] ?: "" }
