@@ -118,6 +118,10 @@ fun PulpitScreen(
             if (state.hourlyOutlook.isNotEmpty()) {
                 HourlyChartCard(state.hourlyOutlook, state.limits, units)
             }
+            // Shot Planner — tylko dla misji foto/film/krajobraz
+            if (currentMission in listOf("film", "photo", "landscape")) {
+                ShotPlannerCard(state.snapshot)
+            }
             ChecklistProgressCard(checkedCount = state.checked.intersect(AllChecklistIds).size)
             CompassCard(windDirectionDeg = state.snapshot.windDir.median)
             MonitoringCard(

@@ -13,8 +13,8 @@ android {
         applicationId = "com.nexplay.dronepreflight"
         minSdk = 24
         targetSdk = 34
-        versionCode = 32
-        versionName = "1.3.4"
+        versionCode = 33
+        versionName = "1.3.5"
         vectorDrawables { useSupportLibrary = true }
     }
 
