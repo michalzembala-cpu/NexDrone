@@ -107,14 +107,31 @@ fun PulpitScreen(
         }
 
         if (state.snapshot != null) {
-            // NexDrone Command Center — one-glance summary
+            // Mission Control — startowy system check
             state.assessment?.let { asmt ->
+                val report = remember(state.snapshot.fetchedAt, state.checked.size) {
+                    com.nexplay.dronepreflight.data.SystemCheck.run(
+                        snap = state.snapshot,
+                        assessment = asmt,
+                        checklistDone = state.checked.intersect(AllChecklistIds).size,
+                        checklistTotal = AllChecklistIds.size,
+                    )
+                }
+                MissionControlCard(report)
+                // NexDrone Command Center — one-glance summary
                 CommandCenterCard(
                     snap = state.snapshot,
                     assessment = asmt,
                     bestWindow = state.bestWindow,
                     units = units,
                 )
+                // Anomalie źródeł — jeśli któreś odjeżdża
+                val anomalies = remember(state.snapshot.fetchedAt) {
+                    com.nexplay.dronepreflight.data.AnomalyDetector.detect(state.snapshot)
+                }
+                if (anomalies.isNotEmpty()) {
+                    AnomalyCard(anomalies)
+                }
             }
             WeatherMedianCard(state.snapshot, units)
             KpMedianCard(state.snapshot)
@@ -1022,6 +1039,34 @@ private fun BriefingButton(state: UiState, units: com.nexplay.dronepreflight.dat
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(top = 4.dp),
         )
+    }
+}
+
+@Composable
+private fun AnomalyCard(anomalies: List<com.nexplay.dronepreflight.data.AnomalyDetector.Anomaly>) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = VerdictColors.Caution.copy(alpha = 0.15f)),
+        border = BorderStroke(1.dp, VerdictColors.Caution),
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Text(
+                "⚠ ANOMALIE W ŹRÓDŁACH",
+                color = VerdictColors.Caution,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(8.dp))
+            anomalies.forEach { a ->
+                Text(
+                    "${a.parameter}: ${a.outlierSource} pokazuje %.1f ${a.unit}, ale pozostałe źródła średnio %.1f. Traktuję medianę jako bardziej wiarygodną.".format(a.outlierValue, a.medianValue),
+                    color = OpsColors.TextPrimary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Spacer(Modifier.height(4.dp))
+            }
+        }
     }
 }
 

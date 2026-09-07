@@ -21,6 +21,12 @@ data class DroneProfile(
     val maxWindMs: Double,
     val minTempC: Double,
     val maxTempC: Double,
+    // Drone Health — ręcznie wpisywane
+    val batteryCycles: Int = 0,
+    val propellerStatus: String = "",     // "nowe" / "sprawdzone" / "do wymiany"
+    val lastInspection: Long = 0,          // timestamp
+    val firmware: String = "",
+    val healthNotes: String = "",
 ) {
     fun toLimits(): DroneLimits = DroneLimits(
         maxWindMs = maxWindMs,

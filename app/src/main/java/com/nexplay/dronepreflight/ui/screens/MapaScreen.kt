@@ -96,6 +96,24 @@ fun MapaScreen(
 
         Spacer(Modifier.height(4.dp))
 
+        // Znajdź miejscówkę — AI wybiera najlepszą z zapisanych
+        var showFinder by remember { mutableStateOf(false) }
+        Button(
+            onClick = { showFinder = true },
+            enabled = snap != null && savedLocations.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = OpsColors.Accent, contentColor = OpsColors.BgBase),
+        ) {
+            Text("🎯 ZNAJDŹ MI MIEJSCÓWKĘ (AI)", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+        }
+        if (showFinder && snap != null) {
+            SpotFinderDialog(
+                snap = snap,
+                savedLocations = savedLocations,
+                onDismiss = { showFinder = false },
+            )
+        }
+
         // Podgląd mapy warunków (OSM + heatmap)
         ConditionsMapCard(
             snap = snap,
