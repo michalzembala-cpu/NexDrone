@@ -28,7 +28,7 @@ import kotlinx.serialization.json.putJsonObject
  */
 object NexAIChat {
 
-    private const val MODEL = "gemini-flash-latest"
+    private const val MODEL = "gemini-1.5-flash"
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     data class Message(val role: String, val text: String) // role: "user" | "model"
