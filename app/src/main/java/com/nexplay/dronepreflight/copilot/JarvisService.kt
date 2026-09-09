@@ -69,17 +69,17 @@ class JarvisService : Service() {
                 Log.d(TAG, "Command: $command")
                 val store = SettingsStore(applicationContext)
                 val provider = store.assistantProvider.first()
-                if (provider != "gemini") {
-                    CopilotSpeaker.say("Włącz Gemini w ustawieniach żeby móc gadać.")
+                if (provider != "groq") {
+                    CopilotSpeaker.say("Włącz Groq w ustawieniach żeby móc gadać.")
                     return@launch
                 }
-                val key = store.assistantGeminiKey.first()
+                val key = store.assistantGroqKey.first()
                 if (key.isBlank()) {
-                    CopilotSpeaker.say("Brak klucza Gemini.")
+                    CopilotSpeaker.say("Brak klucza Groq.")
                     return@launch
                 }
                 val name = store.pilotName.first()
-                val reply = com.nexplay.dronepreflight.copilot.JarvisChat.ask(
+                val reply = com.nexplay.dronepreflight.copilot.GroqChat.ask(
                     apiKey = key,
                     pilotName = name,
                     userQuestion = command,

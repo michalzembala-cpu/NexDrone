@@ -52,7 +52,7 @@ fun MicChatDialog(
     val scope = rememberCoroutineScope()
 
     // Historia rozmowy
-    val history = remember { mutableStateListOf<NexAIChat.Message>() }
+    val history = remember { mutableStateListOf<GroqChat.Message>() }
     var isThinking by remember { mutableStateOf(false) }
     var isListening by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf<String?>(null) }
@@ -66,21 +66,21 @@ fun MicChatDialog(
 
     fun ask(userQuestion: String) {
         if (isThinking) return
-        history += NexAIChat.Message("user", userQuestion)
+        history += GroqChat.Message("user", userQuestion)
         isThinking = true
         statusText = "Myślę…"
         scope.launch {
             try {
                 val store = SettingsStore(context)
-                val key = store.assistantGeminiKey.first()
+                val key = store.assistantGroqKey.first()
                 if (key.isBlank()) {
-                    history += NexAIChat.Message("model", "Włącz Gemini w Ustawieniach i wklej klucz.")
+                    history += GroqChat.Message("assistant", "Wpisz klucz Groq w Ustawieniach → AI Co-pilot.")
                     return@launch
                 }
                 val fullContext = systemContext + "\n\nImię pilota: ${store.pilotName.first()}"
-                val r = NexAIChat.continueChat(key, fullContext, history.dropLast(1).toList(), userQuestion)
+                val r = GroqChat.continueChat(key, fullContext, history.dropLast(1).toList(), userQuestion)
                 val answer = r.getOrElse { "Błąd: ${it.message?.take(100)}" }
-                history += NexAIChat.Message("model", answer)
+                history += GroqChat.Message("assistant", answer)
                 CopilotSpeaker.init(context)
                 CopilotSpeaker.say(answer)
                 statusText = null
@@ -209,10 +209,10 @@ fun MicChatDialog(
 }
 
 @Composable
-private fun MessageBubble(msg: NexAIChat.Message) {
+private fun MessageBubble(msg: GroqChat.Message) {
     val isUser = msg.role == "user"
     val bg = if (isUser) OpsColors.BgPanelRaised else OpsColors.Accent.copy(alpha = 0.18f)
-    val label = if (isUser) "TY" else "JARVIS"
+    val label = if (msg.role == "user") "TY" else "JARVIS"
     val labelColor = if (isUser) OpsColors.TextSecondary else OpsColors.Accent
     Column(
         Modifier

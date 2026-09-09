@@ -52,7 +52,8 @@ class SettingsStore(private val context: Context) {
         val PilotName = stringPreferencesKey("pilot_name")
         // Gemini (darmowy)
         val AssistantGeminiKey = stringPreferencesKey("assistant_gemini_key")
-        val AssistantProvider = stringPreferencesKey("assistant_provider") // "rule" | "gemini" | "claude"
+        val AssistantGroqKey = stringPreferencesKey("assistant_groq_key")
+        val AssistantProvider = stringPreferencesKey("assistant_provider") // "rule" | "groq"
         val UseGeminiTts = stringPreferencesKey("use_gemini_tts")
         val GeminiTtsVoice = stringPreferencesKey("gemini_tts_voice")
         val AssistantPersonality = stringPreferencesKey("assistant_personality")  // luzny/pro/motywator/szyderca/mini
@@ -112,6 +113,11 @@ class SettingsStore(private val context: Context) {
     val assistantGeminiKey: Flow<String> = context.dataStore.data.map { it[Keys.AssistantGeminiKey] ?: "" }
     suspend fun setAssistantGeminiKey(key: String) {
         context.dataStore.edit { it[Keys.AssistantGeminiKey] = key }
+    }
+
+    val assistantGroqKey: Flow<String> = context.dataStore.data.map { it[Keys.AssistantGroqKey] ?: "" }
+    suspend fun setAssistantGroqKey(key: String) {
+        context.dataStore.edit { it[Keys.AssistantGroqKey] = key }
     }
 
     val assistantProvider: Flow<String> = context.dataStore.data.map { it[Keys.AssistantProvider] ?: "rule" }

@@ -211,9 +211,9 @@ fun SpotIntelligencePanel(
                     scope.launch {
                         try {
                             val store = com.nexplay.dronepreflight.data.SettingsStore(context)
-                            val key = store.assistantGeminiKey.first()
+                            val key = store.assistantGroqKey.first()
                             if (key.isBlank()) {
-                                aiAnalysis = "Wpisz klucz Gemini w Ustawieniach → AI Co-pilot"
+                                aiAnalysis = "Wpisz klucz Groq w Ustawieniach → AI Co-pilot"
                                 return@launch
                             }
                             val mission = store.activeMission.first()
@@ -230,7 +230,7 @@ fun SpotIntelligencePanel(
                                 append("Powiedz czy to dobre miejsce, na co uważać, kiedy najlepiej lecieć.")
                             }
                             val name = store.pilotName.first()
-                            val r = com.nexplay.dronepreflight.copilot.JarvisChat.ask(key, name, prompt, "luzny")
+                            val r = com.nexplay.dronepreflight.copilot.GroqChat.ask(key, name, prompt)
                             r.onSuccess { text ->
                                 aiAnalysis = text
                                 com.nexplay.dronepreflight.copilot.CopilotSpeaker.init(context)

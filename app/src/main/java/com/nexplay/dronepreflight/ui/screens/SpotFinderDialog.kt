@@ -34,9 +34,9 @@ fun SpotFinderDialog(
     LaunchedEffect(Unit) {
         loading = true
         val store = SettingsStore(context)
-        val key = store.assistantGeminiKey.first()
+        val key = store.assistantGroqKey.first()
         if (key.isBlank()) {
-            answer = "Włącz Gemini w ustawieniach żeby uzyskać rekomendacje."
+            answer = "Włącz Groq w ustawieniach żeby uzyskać rekomendacje."
             loading = false
             return@LaunchedEffect
         }
@@ -61,11 +61,10 @@ fun SpotFinderDialog(
                 appendLine()
             }
         }
-        val r = com.nexplay.dronepreflight.copilot.JarvisChat.ask(
+        val r = com.nexplay.dronepreflight.copilot.GroqChat.ask(
             apiKey = key,
             pilotName = store.pilotName.first(),
             userQuestion = prompt,
-            personality = "luzny",
         )
         answer = r.getOrElse { "Błąd: ${it.message?.take(80)}" }
         // Wypowiedz

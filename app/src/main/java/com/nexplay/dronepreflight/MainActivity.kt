@@ -125,14 +125,9 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // AI Co-pilot — konfiguracja Gemini TTS (bardziej naturalny głos)
+                // AI Co-pilot — inicjalizacja TTS (Android systemowy)
                 LaunchedEffect(Unit) {
-                    val store = SettingsStore(applicationContext)
-                    val useGemTts = store.useGeminiTts.first()
-                    val key = store.assistantGeminiKey.first()
-                    val voice = store.geminiTtsVoice.first()
                     CopilotSpeaker.init(applicationContext)
-                    CopilotSpeaker.configureGemini(useGemTts, key, voice)
                 }
 
                 // AI Co-pilot — pre-flight briefing gdy załadował się świeży snapshot
@@ -145,13 +140,12 @@ class MainActivity : ComponentActivity() {
                     val name = store.pilotName.first()
                     val provider = store.assistantProvider.first()
                     val fallback = { AiCopilot.preFlightBriefing(name, snap, assess, state.hourlyOutlook, state.units).text }
-                    val personality = store.assistantPersonality.first()
                     val mission = store.activeMission.first()
-                    val text = if (provider == "gemini") {
-                        val key = store.assistantGeminiKey.first()
+                    val text = if (provider == "groq") {
+                        val key = store.assistantGroqKey.first()
                         if (key.isBlank()) fallback()
-                        else com.nexplay.dronepreflight.copilot.GeminiCopilot.briefing(
-                            key, name, snap, assess, state.hourlyOutlook, state.units, personality, mission,
+                        else com.nexplay.dronepreflight.copilot.GroqChat.briefing(
+                            key, name, snap, assess, state.hourlyOutlook, state.units, mission,
                         ).getOrElse { fallback() }
                     } else fallback()
                     CopilotSpeaker.say(text)

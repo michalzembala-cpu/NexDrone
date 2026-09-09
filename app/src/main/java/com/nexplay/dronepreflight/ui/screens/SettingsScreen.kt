@@ -369,70 +369,8 @@ fun SettingsScreen(
                 )
             }
 
-            // Gemini TTS — chmurowa synteza, dużo bardziej naturalna
             Spacer(Modifier.height(6.dp))
             HorizontalDivider(color = OpsColors.Grid)
-            val useGeminiTts by settingsStore.useGeminiTts.collectAsState(initial = false)
-            val geminiTtsVoice by settingsStore.geminiTtsVoice.collectAsState(initial = "Kore")
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Naturalny głos (Gemini TTS)", style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        "Chmurowa synteza — dużo bardziej ludzki głos niż Android. Używa Twojego klucza Gemini, wchodzi w free tier.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = OpsColors.TextSecondary,
-                    )
-                }
-                Switch(
-                    checked = useGeminiTts,
-                    onCheckedChange = { on ->
-                        scope.launch {
-                            settingsStore.setUseGeminiTts(on)
-                            val key = settingsStore.assistantGeminiKey.first()
-                            CopilotSpeaker.configureGemini(on, key, geminiTtsVoice)
-                        }
-                    },
-                )
-            }
-            if (useGeminiTts) {
-                Text(
-                    "Głos Gemini (kliknij aby posłuchać)",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = OpsColors.TextSecondary,
-                )
-                val geminiVoices = listOf(
-                    "Kore" to "spokojny męski (rekomendowany)",
-                    "Puck" to "energiczny męski",
-                    "Charon" to "głęboki męski",
-                    "Fenrir" to "władczy męski",
-                    "Aoede" to "kobiecy przyjazny",
-                    "Leda" to "kobiecy młody",
-                    "Orus" to "męski zawadiacki",
-                    "Zephyr" to "kobiecy spokojny",
-                )
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    geminiVoices.forEach { (id, desc) ->
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        ) {
-                            RadioButton(
-                                selected = geminiTtsVoice == id,
-                                onClick = {
-                                    scope.launch {
-                                        settingsStore.setGeminiTtsVoice(id)
-                                        val key = settingsStore.assistantGeminiKey.first()
-                                        CopilotSpeaker.configureGemini(true, key, id)
-                                        // Sample
-                                        CopilotSpeaker.say("Hej, tu Jarvis. Warunki OK, można lecieć.")
-                                    }
-                                },
-                            )
-                            Text("$id — $desc", style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-            }
 
             // Hej Jarvis — wake word (foreground service)
             Spacer(Modifier.height(6.dp))
@@ -456,12 +394,12 @@ fun SettingsScreen(
                 )
             }
 
-            // Provider AI: rule-based (offline) / Gemini (darmowe od Google)
+            // Provider AI: rule-based (offline) / Groq (darmowe, Llama 3.3 70B)
             Spacer(Modifier.height(6.dp))
             val provider by settingsStore.assistantProvider.collectAsState(initial = "rule")
             Text("Silnik odpowiedzi", style = MaterialTheme.typography.titleSmall)
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                val options = listOf("rule" to "Offline (bez konta)", "gemini" to "Gemini 2.0 (darmowe)")
+                val options = listOf("rule" to "Offline (bez konta)", "groq" to "Groq (Llama 3.3, darmowe)")
                 options.forEachIndexed { i, (id, label) ->
                     SegmentedButton(
                         selected = provider == id,
@@ -473,51 +411,48 @@ fun SettingsScreen(
                 }
             }
 
-            // Gemini key input
-            if (provider == "gemini") {
-                val geminiKeyFlow by settingsStore.assistantGeminiKey.collectAsState(initial = "")
-                var geminiField by remember(geminiKeyFlow) { mutableStateOf(geminiKeyFlow) }
-                var geminiStatus by remember { mutableStateOf<String?>(null) }
+            // Groq key input
+            if (provider == "groq") {
+                val groqKeyFlow by settingsStore.assistantGroqKey.collectAsState(initial = "")
+                var groqField by remember(groqKeyFlow) { mutableStateOf(groqKeyFlow) }
+                var groqStatus by remember { mutableStateOf<String?>(null) }
                 Text(
-                    "Gemini 2.0 Flash — DARMOWY (1500 requestów/dzień). Klucz: aistudio.google.com/app/apikey",
+                    "Groq (Llama 3.3 70B) — DARMOWY (30 req/min, 1000/dzień). Klucz: console.groq.com/keys",
                     style = MaterialTheme.typography.bodySmall,
                     color = OpsColors.TextSecondary,
                 )
                 OutlinedTextField(
-                    value = geminiField,
-                    onValueChange = { geminiField = it },
-                    label = { Text("Klucz Gemini API (AIza...)") },
+                    value = groqField,
+                    onValueChange = { groqField = it },
+                    label = { Text("Klucz Groq API (gsk_...)") },
                     singleLine = true,
                     visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = {
-                        scope.launch { settingsStore.setAssistantGeminiKey(geminiField) }
+                        scope.launch { settingsStore.setAssistantGroqKey(groqField) }
                     }) { Text("Zapisz klucz") }
                     OutlinedButton(onClick = {
-                        geminiStatus = "Sprawdzam…"
+                        groqStatus = "Sprawdzam…"
                         scope.launch {
-                            val key = settingsStore.assistantGeminiKey.first()
-                            if (key.isBlank()) { geminiStatus = "✗ Wpisz klucz"; return@launch }
-                            val r = com.nexplay.dronepreflight.copilot.GeminiCopilot.briefing(
+                            val key = settingsStore.assistantGroqKey.first()
+                            if (key.isBlank()) { groqStatus = "✗ Wpisz klucz"; return@launch }
+                            val r = com.nexplay.dronepreflight.copilot.GroqChat.ask(
                                 apiKey = key,
                                 pilotName = settingsStore.pilotName.first(),
-                                snap = testSnapshot(),
-                                assessment = testAssessment(),
-                                outlook = emptyList(),
-                                units = units,
+                                userQuestion = "Powiedz krótko po polsku: system online",
                             )
-                            geminiStatus = if (r.isSuccess) {
+                            groqStatus = if (r.isSuccess) {
                                 val text = r.getOrNull() ?: "?"
                                 CopilotSpeaker.init(context)
                                 CopilotSpeaker.say(text)
                                 "✓ ${text.take(80)}…"
                             } else "✗ ${r.exceptionOrNull()?.message?.take(80)}"
                         }
-                    }) { Text("Test Gemini") }
+                    }) { Text("Test Groq") }
                 }
-                geminiStatus?.let {
+                groqStatus?.let {
                     Text(
                         it,
                         color = if (it.startsWith("✓")) VerdictColors.Go else VerdictColors.NoGo,

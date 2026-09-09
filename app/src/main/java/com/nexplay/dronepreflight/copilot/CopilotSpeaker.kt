@@ -23,17 +23,6 @@ object CopilotSpeaker {
     @Volatile private var lastSpokenHash = 0
     var selectedVoiceName: String? = null
 
-    // Gemini TTS config — set via configureGemini()
-    @Volatile private var geminiEnabled = false
-    @Volatile private var geminiKey: String = ""
-    @Volatile private var geminiCurrentJob: Job? = null
-    private val bgScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
-    fun configureGemini(enabled: Boolean, apiKey: String, voiceName: String) {
-        geminiEnabled = enabled && apiKey.isNotBlank()
-        geminiKey = apiKey
-        GeminiTts.voiceName = voiceName
-    }
 
     fun init(context: Context) {
         if (tts != null) return
@@ -94,24 +83,6 @@ object CopilotSpeaker {
         if (hash == lastSpokenHash && now - lastSpokenAt < 30_000) return
         lastSpokenAt = now
         lastSpokenHash = hash
-
-        if (geminiEnabled) {
-            // Anuluj poprzednie odtwarzanie
-            geminiCurrentJob?.cancel()
-            geminiCurrentJob = bgScope.launch {
-                val r = GeminiTts.synthesize(geminiKey, text)
-                val audio = r.getOrNull()
-                if (audio != null && audio.isNotEmpty()) {
-                    GeminiTts.playPcm(audio)
-                } else {
-                    Log.w("CopilotSpeaker", "Gemini TTS failed, fallback: ${r.exceptionOrNull()?.message}")
-                    // Fallback do Android TTS
-                    if (ready) speakNow(text)
-                    else synchronized(queue) { queue += text }
-                }
-            }
-            return
-        }
 
         if (!ready) {
             synchronized(queue) { queue += text }
