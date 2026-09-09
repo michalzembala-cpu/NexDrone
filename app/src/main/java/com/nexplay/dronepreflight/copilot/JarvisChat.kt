@@ -26,7 +26,7 @@ import kotlinx.serialization.json.putJsonObject
  */
 object JarvisChat {
 
-    private const val MODEL = "gemini-1.5-flash"
+    private const val MODEL = "gemini-flash-latest"
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     private const val SYSTEM = """
