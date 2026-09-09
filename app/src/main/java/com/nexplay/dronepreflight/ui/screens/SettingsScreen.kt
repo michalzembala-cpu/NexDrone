@@ -436,8 +436,11 @@ fun SettingsScreen(
                     OutlinedButton(onClick = {
                         groqStatus = "Sprawdzam…"
                         scope.launch {
-                            val key = settingsStore.assistantGroqKey.first()
+                            // Bierz z pola (nie z DataStore) — user nie musi klikać Zapisz przed testem
+                            val key = groqField.trim()
                             if (key.isBlank()) { groqStatus = "✗ Wpisz klucz"; return@launch }
+                            // Auto-save żeby przy kolejnym starcie apki był
+                            settingsStore.setAssistantGroqKey(key)
                             val r = com.nexplay.dronepreflight.copilot.GroqChat.ask(
                                 apiKey = key,
                                 pilotName = settingsStore.pilotName.first(),
