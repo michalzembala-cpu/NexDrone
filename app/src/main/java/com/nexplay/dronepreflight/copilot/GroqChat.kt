@@ -30,7 +30,7 @@ import kotlinx.serialization.json.putJsonArray
  */
 object GroqChat {
 
-    private const val MODEL = "llama-3.1-8b-instant"
+    private const val MODEL = "openai/gpt-oss-20b"
     private const val ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -161,9 +161,13 @@ object GroqChat {
 
     private fun extractText(response: String): String {
         val root = json.parseToJsonElement(response).jsonObject
-        return root["choices"]?.jsonArray?.firstOrNull()?.jsonObject
+        val content = root["choices"]?.jsonArray?.firstOrNull()?.jsonObject
             ?.get("message")?.jsonObject
             ?.get("content")?.jsonPrimitive?.content
-            ?: error("Brak odpowiedzi Groq: ${response.take(200)}")
+        if (content != null) return content
+        // Wyciągnij czytelny błąd zamiast surowego JSON-a
+        val errMsg = root["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content
+        if (errMsg != null) error("Groq: $errMsg")
+        error("Groq (nieznana odpowiedź): ${response.take(500)}")
     }
 }
