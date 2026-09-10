@@ -30,7 +30,7 @@ import kotlinx.serialization.json.putJsonArray
  */
 object GroqChat {
 
-    private const val MODEL = "llama-3.3-70b-versatile"
+    private const val MODEL = "llama-3.1-8b-instant"
     private const val ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
