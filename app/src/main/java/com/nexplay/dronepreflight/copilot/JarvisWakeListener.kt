@@ -5,17 +5,20 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.core.app.ActivityCompat
-import kotlinx.coroutines.*
 
 /**
  * Ciągłe nasłuchiwanie w tle na słowo aktywacyjne (domyślnie "jarvis").
- * Uwaga: to jest hacky wake-word na Android SpeechRecognizer, nie prawdziwy Porcupine.
- * Zużywa baterię 2-3x szybciej. Powinno działać gdy apka jest na wierzchu.
+ *
+ * Android SpeechRecognizer zawsze kończy sesję po ciszy — nie da się utrzymać jednej długiej.
+ * Więc reużywamy JEDEN recognizer i restartujemy go natychmiast po zakończeniu (bez destroy/create),
+ * co znacząco skraca "mrugnięcie" ikonki mikrofonu i redukuje zużycie CPU.
  */
 class JarvisWakeListener(
     private val context: Context,
@@ -23,10 +26,60 @@ class JarvisWakeListener(
     private val onWakeDetected: () -> Unit,
 ) {
 
+    private val main = Handler(Looper.getMainLooper())
     private var recognizer: SpeechRecognizer? = null
-    private var scope: CoroutineScope? = null
     @Volatile private var running = false
-    @Volatile private var suspended = false  // gdy inny recognizer używa mikrofonu
+    @Volatile private var suspended = false
+
+    private val intent by lazy {
+        Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pl-PL")
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            // Wydłuż okno mowy żeby nie ucinał co 2s
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 10_000L)
+        }
+    }
+
+    private val listener = object : RecognitionListener {
+        private var triggered = false
+        override fun onReadyForSpeech(params: Bundle?) { triggered = false }
+        override fun onBeginningOfSpeech() {}
+        override fun onRmsChanged(rmsdB: Float) {}
+        override fun onBufferReceived(buffer: ByteArray?) {}
+        override fun onEndOfSpeech() {}
+        override fun onEvent(eventType: Int, params: Bundle?) {}
+
+        override fun onPartialResults(partialResults: Bundle?) { checkResults(partialResults) }
+
+        override fun onResults(results: Bundle?) {
+            checkResults(results)
+            scheduleRestart(80)
+        }
+
+        override fun onError(error: Int) {
+            // NO_MATCH / SPEECH_TIMEOUT są normalne — restart natychmiast
+            val fast = error == SpeechRecognizer.ERROR_NO_MATCH ||
+                error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+            scheduleRestart(if (fast) 80 else 500)
+        }
+
+        private fun checkResults(bundle: Bundle?) {
+            if (triggered) return
+            val texts = bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION) ?: return
+            for (t in texts) {
+                if (t.lowercase().contains(wakeWord)) {
+                    triggered = true
+                    try { recognizer?.stopListening() } catch (_: Exception) {}
+                    onWakeDetected()
+                    return
+                }
+            }
+        }
+    }
 
     fun start() {
         if (running) return
@@ -39,84 +92,49 @@ class JarvisWakeListener(
             return
         }
         running = true
-        scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-        scope?.launch {
-            while (running) {
-                if (!suspended) {
-                    listenOnce()
-                }
-                delay(500)  // krótka przerwa między próbami żeby uspokoić mic
-            }
-        }
+        main.post { createAndStart() }
     }
 
     fun stop() {
         running = false
-        scope?.cancel()
-        scope = null
-        recognizer?.destroy()
-        recognizer = null
+        main.post {
+            try { recognizer?.destroy() } catch (_: Exception) {}
+            recognizer = null
+        }
     }
 
-    /** Wstrzymaj chwilowo (gdy inny recognizer używa mikrofonu). */
-    fun suspend() { suspended = true; recognizer?.stopListening() }
-    fun resume() { suspended = false }
+    fun suspend() {
+        suspended = true
+        main.post { try { recognizer?.stopListening() } catch (_: Exception) {} }
+    }
 
-    private suspend fun listenOnce() = withContext(Dispatchers.Main) {
-        val done = CompletableDeferred<Unit>()
-        recognizer?.destroy()
-        val sr = SpeechRecognizer.createSpeechRecognizer(context)
-        recognizer = sr
+    fun resume() {
+        if (!running) return
+        suspended = false
+        scheduleRestart(80)
+    }
 
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pl-PL")
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+    private fun createAndStart() {
+        if (!running || suspended) return
+        if (recognizer == null) {
+            recognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
+                setRecognitionListener(listener)
+            }
         }
-
-        sr.setRecognitionListener(object : RecognitionListener {
-            private var triggered = false
-            override fun onPartialResults(partialResults: Bundle?) { check(partialResults) }
-            override fun onResults(results: Bundle?) {
-                check(results)
-                if (!done.isCompleted) done.complete(Unit)
-            }
-            override fun onError(error: Int) {
-                if (!done.isCompleted) done.complete(Unit)
-            }
-            override fun onEndOfSpeech() { /* czekamy na onResults */ }
-            override fun onReadyForSpeech(params: Bundle?) {}
-            override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEvent(eventType: Int, params: Bundle?) {}
-
-            private fun check(bundle: Bundle?) {
-                if (triggered) return
-                val texts = bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION) ?: return
-                for (t in texts) {
-                    val lower = t.lowercase()
-                    if (lower.contains(wakeWord)) {
-                        triggered = true
-                        onWakeDetected()
-                        sr.stopListening()
-                        if (!done.isCompleted) done.complete(Unit)
-                        return
-                    }
-                }
-            }
-        })
-
         try {
-            sr.startListening(intent)
-            withTimeoutOrNull(15_000) { done.await() }
+            recognizer?.startListening(intent)
         } catch (e: Exception) {
-            Log.w(TAG, "wake listen error", e)
-        } finally {
-            sr.destroy()
+            Log.w(TAG, "startListening failed", e)
+            scheduleRestart(1000)
         }
     }
+
+    private fun scheduleRestart(delayMs: Long) {
+        main.removeCallbacks(restartRunnable)
+        main.postDelayed(restartRunnable, delayMs)
+    }
+
+    private val restartRunnable = Runnable { createAndStart() }
 
     private fun hasPermission(): Boolean =
         ActivityCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==

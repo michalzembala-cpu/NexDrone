@@ -100,11 +100,15 @@ fun MapaScreen(
         var showFinder by remember { mutableStateOf(false) }
         Button(
             onClick = { showFinder = true },
-            enabled = snap != null && savedLocations.isNotEmpty(),
+            enabled = snap != null,
             modifier = Modifier.fillMaxWidth().height(52.dp),
             colors = ButtonDefaults.buttonColors(containerColor = OpsColors.Accent, contentColor = OpsColors.BgBase),
         ) {
-            Text("🎯 ZNAJDŹ MI MIEJSCÓWKĘ (AI)", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+            Text(
+                if (savedLocations.isEmpty()) "🎯 ZNAJDŹ NAJBLIŻSZE MIEJSCÓWKI (AI)"
+                else "🎯 ZNAJDŹ MI MIEJSCÓWKĘ (AI)",
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            )
         }
         if (showFinder && snap != null) {
             SpotFinderDialog(
