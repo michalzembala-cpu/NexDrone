@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Remove
@@ -98,6 +99,8 @@ fun ConditionsMapCard(
 
     var tapCoords by remember { mutableStateOf<Pair<Double, Double>?>(null) }
     var showWindGrid by remember { mutableStateOf(false) }
+    // 0=OSM, 1=Geoportal Topo, 2=Geoportal Orto (zdjęcia lotnicze)
+    var tileLayerIdx by remember { mutableStateOf(0) }
     var loadingWind by remember { mutableStateOf(false) }
     var windPoints by remember { mutableStateOf<List<WindPoint>>(emptyList()) }
     val scope = rememberCoroutineScope()
@@ -185,6 +188,18 @@ fun ConditionsMapCard(
         mapView.invalidate()
     }
 
+    // Zmiana warstwy podkładu
+    LaunchedEffect(tileLayerIdx) {
+        mapView.setTileSource(
+            when (tileLayerIdx) {
+                1 -> GeoportalTileSources.TOPO
+                2 -> GeoportalTileSources.ORTHO
+                else -> TileSourceFactory.MAPNIK
+            }
+        )
+        mapView.invalidate()
+    }
+
     // Toggle strzałek wiatru — pobiera 3x3 siatkę z Open-Meteo
     LaunchedEffect(showWindGrid, centerLat, centerLon) {
         mapView.overlays.removeAll { it is WindArrowsOverlay }
@@ -232,19 +247,38 @@ fun ConditionsMapCard(
                     factory = { mapView },
                 )
 
-                // Nazwa lokalizacji — top left overlay
-                Box(
+                // Nazwa lokalizacji + warstwa — top left overlay
+                Column(
                     Modifier
                         .align(Alignment.TopStart)
-                        .padding(12.dp)
-                        .background(OpsColors.BgBase.copy(alpha = 0.8f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Text(
-                        snap.locationName,
-                        color = OpsColors.TextPrimary,
-                        style = MaterialTheme.typography.labelMedium,
-                    )
+                    Box(
+                        Modifier
+                            .background(OpsColors.BgBase.copy(alpha = 0.8f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    ) {
+                        Text(
+                            snap.locationName,
+                            color = OpsColors.TextPrimary,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+                    if (tileLayerIdx != 0) {
+                        Box(
+                            Modifier
+                                .background(OpsColors.Accent.copy(alpha = 0.85f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                        ) {
+                            Text(
+                                if (tileLayerIdx == 1) "GEOPORTAL · TOPO" else "GEOPORTAL · ORTOFOTO",
+                                color = OpsColors.BgBase,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
                 }
 
                 // Zoom + fullscreen + clear pin controls — top right
@@ -281,6 +315,19 @@ fun ConditionsMapCard(
                         ),
                     ) {
                         Icon(Icons.Default.Remove, contentDescription = "Zoom out", tint = OpsColors.TextPrimary)
+                    }
+                    FilledIconButton(
+                        onClick = { tileLayerIdx = (tileLayerIdx + 1) % 3 },
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = if (tileLayerIdx != 0) OpsColors.Accent
+                                else OpsColors.BgBase.copy(alpha = 0.9f),
+                        ),
+                    ) {
+                        Icon(
+                            Icons.Default.Layers,
+                            contentDescription = "Warstwa mapy",
+                            tint = if (tileLayerIdx != 0) OpsColors.BgBase else OpsColors.TextPrimary,
+                        )
                     }
                     FilledIconButton(
                         onClick = { showWindGrid = !showWindGrid },
