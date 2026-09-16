@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Most po sieci lokalnej (NexPlay na laptopie) chodzi po zwyklym HTTP — w domowej sieci
+  nie ma certyfikatu, ktorym mozna by to zabezpieczyc. Ruch do internetu i tak idzie po
+  HTTPS, bo adresy sa wpisane na sztywno z https://.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
