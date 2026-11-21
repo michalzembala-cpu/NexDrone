@@ -13,8 +13,8 @@ android {
         applicationId = "com.nexplay.dronepreflight"
         minSdk = 24
         targetSdk = 34
-        versionCode = 47
-        versionName = "1.4.13"
+        versionCode = 48
+        versionName = "1.4.14"
         vectorDrawables { useSupportLibrary = true }
     }
 
@@ -37,6 +37,7 @@ android {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     val composeBom = platform("androidx.compose:compose-bom:2024.09.02")
     implementation(composeBom)
 

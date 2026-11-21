@@ -88,6 +88,7 @@ fun PulpitScreen(
                 "details" -> "SZCZEGÓŁY POGODY"
                 "forecast" -> "PROGNOZA GODZINOWA"
                 "tools" -> "NARZĘDZIA MISJI"
+                "film" -> "PLAN FILMU"
                 else -> ""
             },
             onBack = { activeSubview = null },
@@ -111,6 +112,16 @@ fun PulpitScreen(
                     SunLightCard(state.snapshot)
                     FlightCalculatorCard(state.snapshot)
                     CompassCard(windDirectionDeg = state.snapshot.windDir.median)
+                }
+                "film" -> {
+                    FilmPlanCard(
+                        snap = state.snapshot,
+                        profiles = state.droneProfiles,
+                        activeProfileId = state.activeProfileId,
+                        onPickModel = { model ->
+                            scope.launch { selectDroneModel(settingsStore, state, model) }
+                        },
+                    )
                 }
             }
         }
@@ -187,7 +198,7 @@ fun PulpitScreen(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SectionTile("📸", "NARZĘDZIA", Modifier.weight(1f)) { activeSubview = "tools" }
-                Spacer(Modifier.weight(1f))
+                SectionTile("🎥", "PLAN FILMU", Modifier.weight(1f)) { activeSubview = "film" }
             }
 
             // ✅ CHECKLIST + MONITORING — inline pod misjami

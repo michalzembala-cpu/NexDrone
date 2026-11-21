@@ -180,6 +180,8 @@ private fun ProfileEditorDialog(
     onSave: (DroneProfile) -> Unit,
 ) {
     var name by remember { mutableStateOf(initial?.name ?: "") }
+    var modelId by remember { mutableStateOf(initial?.modelId ?: "") }
+    var modelMenu by remember { mutableStateOf(false) }
     // Pola w jednostce użytkownika; konwersja przy zapisie.
     var wind by remember(units.wind) {
         mutableStateOf("%.1f".format((initial?.maxWindMs ?: 10.0).windIn(units.wind)))
@@ -206,6 +208,28 @@ private fun ProfileEditorDialog(
                     color = OpsColors.TextSecondary,
                 )
                 Spacer(Modifier.height(10.dp))
+                Box {
+                    OutlinedButton(onClick = { modelMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Model: " + (com.nexplay.dronepreflight.data.DroneCatalog.byId(modelId)?.name ?: "nie wybrano") + " ▾")
+                    }
+                    DropdownMenu(expanded = modelMenu, onDismissRequest = { modelMenu = false }) {
+                        com.nexplay.dronepreflight.data.DroneCatalog.Models.forEach { m ->
+                            DropdownMenuItem(
+                                text = { Text(m.name) },
+                                onClick = {
+                                    modelMenu = false
+                                    modelId = m.id
+                                    // Limity z karty katalogowej — można potem poprawić ręcznie
+                                    if (name.isBlank()) name = m.name
+                                    wind = "%.1f".format(m.maxWindMs.windIn(units.wind))
+                                    tmin = "%.1f".format(m.minTempC.tempIn(units.temp))
+                                    tmax = "%.1f".format(m.maxTempC.tempIn(units.temp))
+                                },
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
                     label = { Text("Nazwa (np. DJI Mini 3)") },
@@ -235,12 +259,15 @@ private fun ProfileEditorDialog(
             TextButton(
                 onClick = {
                     val id = initial?.id ?: "prof_${System.currentTimeMillis()}"
+                    // copy() zachowuje pola spoza formularza (Drone Health)
+                    val base = initial ?: DroneProfile(id = id, name = "", maxWindMs = 0.0, minTempC = 0.0, maxTempC = 0.0)
                     onSave(
-                        DroneProfile(
-                            id = id, name = name.trim(),
+                        base.copy(
+                            name = name.trim(),
                             maxWindMs = windVal!!.windToMs(units.wind),
                             minTempC = tminVal!!.tempToC(units.temp),
                             maxTempC = tmaxVal!!.tempToC(units.temp),
+                            modelId = modelId,
                         )
                     )
                 },

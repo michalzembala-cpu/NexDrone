@@ -27,6 +27,8 @@ data class DroneProfile(
     val lastInspection: Long = 0,          // timestamp
     val firmware: String = "",
     val healthNotes: String = "",
+    // Model z DroneCatalog ("neo", "mini3", …) — puste = nie wybrano (starsze profile)
+    val modelId: String = "",
 ) {
     fun toLimits(): DroneLimits = DroneLimits(
         maxWindMs = maxWindMs,
