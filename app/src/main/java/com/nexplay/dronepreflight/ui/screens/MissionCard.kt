@@ -22,14 +22,17 @@ data class Mission(
     val emoji: String,
     val name: String,
     val hint: String,
+    /** Krótka nazwa na kafelek — pięć pełnych nazw nie mieści się w szerokości
+     *  telefonu i łamie się w połowie słowa ("FILMOW ANIE"). */
+    val krotka: String,
 )
 
 val Missions = listOf(
-    Mission("film", "🎥", "FILMOWANIE", "Priorytet: światło, wiatr boczny, płynność"),
-    Mission("photo", "📸", "ZDJĘCIA", "Priorytet: światło, niska wilgotność"),
-    Mission("recon", "🗺", "REKONESANS", "Priorytet: widoczność, KP index (GPS)"),
-    Mission("landscape", "🏞", "KRAJOBRAZ", "Priorytet: przejrzystość, słaby wiatr"),
-    Mission("general", "✈", "ZWYKŁY LOT", "Priorytet: wszystkie parametry ogólnie"),
+    Mission("film", "🎥", "FILMOWANIE", "Priorytet: światło, wiatr boczny, płynność", "FILM"),
+    Mission("photo", "📸", "ZDJĘCIA", "Priorytet: światło, niska wilgotność", "FOTO"),
+    Mission("recon", "🗺", "REKONESANS", "Priorytet: widoczność, KP index (GPS)", "REKON"),
+    Mission("landscape", "🏞", "KRAJOBRAZ", "Priorytet: przejrzystość, słaby wiatr", "WIDOK"),
+    Mission("general", "✈", "ZWYKŁY LOT", "Priorytet: wszystkie parametry ogólnie", "LOT"),
 )
 
 fun missionById(id: String): Mission = Missions.firstOrNull { it.id == id } ?: Missions.last()
@@ -98,10 +101,11 @@ private fun MissionTile(
         Text(mission.emoji, fontSize = 22.sp)
         Spacer(Modifier.height(2.dp))
         Text(
-            mission.name,
+            mission.krotka,
             color = if (selected) VerdictColors.Go else OpsColors.TextPrimary,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
+            maxLines = 1,
         )
     }
 }

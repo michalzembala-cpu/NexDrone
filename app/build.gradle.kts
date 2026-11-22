@@ -23,6 +23,14 @@ android {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
+        debug {
+            // Build testowy instaluje sie OBOK wydania, zamiast je nadpisywac.
+            // Podpisy debug i release sie roznia, wiec bez tego instalacja konczy sie
+            // bledem INSTALL_FAILED_UPDATE_INCOMPATIBLE, a jedynym wyjsciem byloby
+            // odinstalowanie apki razem z profilami BSP i ustawieniami.
+            applicationIdSuffix = ".debug"
+            resValue("string", "app_name_debug", "NexDrone DEBUG")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

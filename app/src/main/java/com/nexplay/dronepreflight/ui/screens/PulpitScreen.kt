@@ -144,11 +144,8 @@ fun PulpitScreen(
             onRefresh = onRefresh,
         )
 
-        // Wybór misji — zmienia priorytety Jarvis'a i wskazówki
-        MissionCard(
-            selectedId = currentMission,
-            onSelect = { id -> scope.launch { settingsStore.setActiveMission(id) } },
-        )
+        // Wybór misji mieszka teraz w zakładce LOT — na Pulpicie był drugim miejscem,
+        // w którym ustawiało się to samo.
 
         state.error?.let { ErrorCard(it) }
 
@@ -167,14 +164,10 @@ fun PulpitScreen(
                         checklistTotal = AllChecklistIds.size,
                     )
                 }
-                MissionControlCard(report)
-                // NexDrone Command Center — one-glance summary
-                CommandCenterCard(
-                    snap = state.snapshot,
-                    assessment = asmt,
-                    bestWindow = state.bestWindow,
-                    units = units,
-                )
+                // Jedna karta zamiast trzech: werdykt, cztery liczby i stan systemow.
+                // Wczesniej MissionControlCard, CommandCenterCard i VerdictCard stały
+                // jedna pod druga i odpowiadaly na to samo pytanie trzy razy.
+                MissionHeroCard(state = state, report = report, units = units)
                 // Anomalie źródeł — jeśli któreś odjeżdża
                 val anomalies = remember(state.snapshot.fetchedAt) {
                     com.nexplay.dronepreflight.data.AnomalyDetector.detect(state.snapshot)
@@ -183,11 +176,10 @@ fun PulpitScreen(
                     AnomalyCard(anomalies)
                 }
             }
-            // ESSENTIALS — najważniejsze na wierzchu:
-            VerdictCard(state, units)
             BestTimeCard(state.bestWindow, state.hourlyOutlook)
 
-            // Kafelki podekranów — klik = wejście, nie rozwijanie
+            // Wejścia do podekranów tuż pod werdyktem — to po nie się tu wchodzi,
+            // więc nie mogą leżeć na końcu kolumny.
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SectionTile("🌡", "SZCZEGÓŁY POGODY", Modifier.weight(1f)) { activeSubview = "details" }
                 if (state.hourlyOutlook.isNotEmpty()) {
@@ -201,16 +193,16 @@ fun PulpitScreen(
                 SectionTile("🎥", "PLAN FILMU", Modifier.weight(1f)) { activeSubview = "film" }
             }
 
-            // ✅ CHECKLIST + MONITORING — inline pod misjami
-            ChecklistProgressCard(checkedCount = state.checked.intersect(AllChecklistIds).size)
+            StartFlightButton(
+                enabled = state.assessment?.overall != Verdict.NO_GO,
+                onClick = onStartFlight,
+            )
+            // Postęp checklisty pokazuje teraz pasek systemów w karcie u góry,
+            // a sama checklista ma własną zakładkę — osobna karta była trzecim powtórzeniem.
             MonitoringCard(
                 active = state.monitoringActive,
                 onStart = onStartMonitor,
                 onStop = onStopMonitor,
-            )
-            StartFlightButton(
-                enabled = state.assessment?.overall != Verdict.NO_GO,
-                onClick = onStartFlight,
             )
             BriefingButton(state, units)
         } else if (!state.loading) {
@@ -304,7 +296,7 @@ private fun LocationCard(
 // ── Karta pogoda-mediana z 5 źródłami ──
 
 @Composable
-private fun WeatherMedianCard(
+internal fun WeatherMedianCard(
     snap: AggregatedSnapshot,
     units: com.nexplay.dronepreflight.data.DisplayUnits,
 ) {
@@ -443,7 +435,7 @@ private fun shortSource(s: String): String = when {
 // ── Karta KP z półkolistym gauge ──
 
 @Composable
-private fun KpMedianCard(snap: AggregatedSnapshot) {
+internal fun KpMedianCard(snap: AggregatedSnapshot) {
     val kp = snap.kpIndex
     val kpLevel = when {
         kp == null -> "BRAK DANYCH" to OpsColors.TextSecondary
@@ -544,6 +536,225 @@ private fun KpGauge(value: Double, modifier: Modifier = Modifier) {
             useCenter = false,
             topLeft = topLeft, size = arcSize,
             style = Stroke(width = stroke, cap = StrokeCap.Round),
+        )
+    }
+}
+
+// ── Karta główna: werdykt + liczby + systemy w jednym ──
+//
+// Zastępuje trzy osobne karty (MissionControl, CommandCenter, Verdict). Na wierzchu
+// zostaje odpowiedź na pytanie "lecę czy nie", a szczegóły — lista ośmiu systemów
+// i uzasadnienie werdyktu — chowają się pod kliknięcie.
+
+@Composable
+private fun MissionHeroCard(
+    state: UiState,
+    report: com.nexplay.dronepreflight.data.SystemCheck.Report,
+    units: DisplayUnits,
+) {
+    val snap = state.snapshot ?: return
+    val assessment = state.assessment ?: return
+    val (label, color, sub) = when (assessment.overall) {
+        Verdict.GO -> Triple("GO", VerdictColors.Go, "Warunki dobre do lotu")
+        Verdict.CAUTION -> Triple("OSTROŻNIE", VerdictColors.Caution, "Warunki graniczne — sprawdź szczegóły")
+        Verdict.NO_GO -> Triple("NO-GO", VerdictColors.NoGo, "Nie lataj — warunki poza limitami")
+    }
+    val confidence = remember(snap.fetchedAt) { ConfidenceCalculator.calculate(snap) }
+    val problems = assessment.checks.filter { it.verdict != Verdict.GO }
+    val allOk = assessment.checks.filter { it.verdict == Verdict.GO }
+    var showSystems by rememberSaveable { mutableStateOf(false) }
+    var showWhy by rememberSaveable { mutableStateOf(false) }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = OpsColors.BgPanel),
+        border = BorderStroke(2.dp, color.copy(alpha = 0.7f)),
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                "OCENA DLA TWOJEGO BSP",
+                color = OpsColors.TextSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(8.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(label, color = color, fontSize = 44.sp, fontWeight = FontWeight.Bold)
+                    Text(sub, color = OpsColors.TextSecondary, style = MaterialTheme.typography.bodyMedium)
+                }
+                ConfidenceBadge(confidence)
+            }
+
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                HeroCell(
+                    "🌡",
+                    com.nexplay.dronepreflight.data.formatTemp(snap.temp.median, units.temp),
+                    "TEMP",
+                    Modifier.weight(1f),
+                )
+                HeroCell(
+                    "🌬",
+                    snap.wind.median?.let { formatWind(it, units.wind) } ?: "—",
+                    snap.gust.median?.let { "porywy " + formatWind(it, units.wind).take(6) } ?: "wiatr",
+                    Modifier.weight(1f),
+                )
+                HeroCell(
+                    "🕐",
+                    state.bestWindow?.let { "%02d:00".format(it.startLocal.hour) } ?: "—",
+                    state.bestWindow?.let { "okno ${it.hours}h" } ?: "brak okna",
+                    Modifier.weight(1f),
+                )
+                HeroCell(
+                    "📡",
+                    snap.kpIndex?.let { "%.1f".format(it) } ?: "—",
+                    "KP",
+                    Modifier.weight(1f),
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+            HorizontalDivider(color = OpsColors.Grid)
+
+            // Pasek systemów — zwinięty pokazuje ile z ilu, rozwinięty całą listę
+            val barColor = if (report.allGood) VerdictColors.Go else VerdictColors.Caution
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { showSystems = !showSystems }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "SYSTEMY",
+                    color = OpsColors.TextSecondary,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.width(10.dp))
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(OpsColors.Grid)
+                ) {
+                    val part = if (report.totalCount > 0) {
+                        report.readyCount.toFloat() / report.totalCount
+                    } else 0f
+                    Box(
+                        Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(part)
+                            .background(barColor)
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "${report.readyCount}/${report.totalCount}",
+                    color = barColor,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(if (showSystems) "  ▴" else "  ▾", color = OpsColors.TextSecondary)
+            }
+            if (showSystems) {
+                report.items.forEach { item ->
+                    val dot = when (item.status) {
+                        com.nexplay.dronepreflight.data.SystemCheck.Status.OK -> VerdictColors.Go
+                        com.nexplay.dronepreflight.data.SystemCheck.Status.WARN -> VerdictColors.Caution
+                        com.nexplay.dronepreflight.data.SystemCheck.Status.FAIL -> VerdictColors.NoGo
+                        else -> OpsColors.TextSecondary
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(dot))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            item.label,
+                            color = OpsColors.TextPrimary,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            item.detail,
+                            color = OpsColors.TextSecondary,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+            }
+
+            HorizontalDivider(color = OpsColors.Grid)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { showWhy = !showWhy }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "DLACZEGO $label?",
+                    color = OpsColors.TextSecondary,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                Spacer(Modifier.weight(1f))
+                if (problems.isNotEmpty()) {
+                    Text(
+                        "${problems.size} do sprawdzenia",
+                        color = VerdictColors.Caution,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(if (showWhy) "▴" else "▾", color = OpsColors.TextSecondary)
+            }
+            if (showWhy) {
+                if (problems.isNotEmpty()) {
+                    problems.forEach { CheckDetailRow(it) }
+                    if (allOk.isNotEmpty()) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "✓ Bez zastrzeżeń: " + allOk.joinToString(", ") { it.label.lowercase() },
+                            color = OpsColors.TextSecondary,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                } else {
+                    allOk.forEach { CheckDetailRow(it) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroCell(icon: String, value: String, label: String, modifier: Modifier) {
+    Column(
+        modifier
+            .background(OpsColors.BgPanelRaised, RoundedCornerShape(6.dp))
+            .padding(vertical = 8.dp, horizontal = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(icon, fontSize = 16.sp)
+        Text(
+            value,
+            color = OpsColors.TextPrimary,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+        )
+        Text(
+            label,
+            color = OpsColors.TextSecondary,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
         )
     }
 }
@@ -672,7 +883,7 @@ private fun CheckDetailRow(check: ConditionCheck) {
 // ── Karta NAJBLIŻSZE 3H ──
 
 @Composable
-private fun Next3HoursCard(outlook: List<HourlyOutlook>, units: DisplayUnits) {
+internal fun Next3HoursCard(outlook: List<HourlyOutlook>, units: DisplayUnits) {
     val next = outlook.take(4)
     if (next.isEmpty()) return
     OpsCard {
@@ -788,7 +999,7 @@ private fun HourStrip(outlook: List<HourlyOutlook>) {
 // ── Karta checklista progress ──
 
 @Composable
-private fun ChecklistProgressCard(checkedCount: Int) {
+internal fun ChecklistProgressCard(checkedCount: Int) {
     val total = AllChecklistIds.size
     val fraction = if (total == 0) 0f else checkedCount / total.toFloat()
     OpsCard {
@@ -818,7 +1029,7 @@ private fun ChecklistProgressCard(checkedCount: Int) {
 }
 
 @Composable
-private fun HourlyChartCard(
+internal fun HourlyChartCard(
     outlook: List<com.nexplay.dronepreflight.ui.HourlyOutlook>,
     limits: com.nexplay.dronepreflight.data.DroneLimits,
     units: com.nexplay.dronepreflight.data.DisplayUnits,
@@ -971,7 +1182,7 @@ private fun LegendDot(color: Color) {
 }
 
 @Composable
-private fun MonitoringCard(active: Boolean, onStart: () -> Unit, onStop: () -> Unit) {
+internal fun MonitoringCard(active: Boolean, onStart: () -> Unit, onStop: () -> Unit) {
     OpsCard {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1019,7 +1230,7 @@ private fun MonitoringCard(active: Boolean, onStart: () -> Unit, onStop: () -> U
 }
 
 @Composable
-private fun BriefingButton(state: UiState, units: com.nexplay.dronepreflight.data.DisplayUnits) {
+internal fun BriefingButton(state: UiState, units: com.nexplay.dronepreflight.data.DisplayUnits) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var generating by remember { mutableStateOf(false) }
@@ -1155,7 +1366,7 @@ private fun SubviewScreen(
 }
 
 @Composable
-private fun AnomalyCard(anomalies: List<com.nexplay.dronepreflight.data.AnomalyDetector.Anomaly>) {
+internal fun AnomalyCard(anomalies: List<com.nexplay.dronepreflight.data.AnomalyDetector.Anomaly>) {
     Card(
         colors = CardDefaults.cardColors(containerColor = VerdictColors.Caution.copy(alpha = 0.15f)),
         border = BorderStroke(1.dp, VerdictColors.Caution),
@@ -1183,7 +1394,7 @@ private fun AnomalyCard(anomalies: List<com.nexplay.dronepreflight.data.AnomalyD
 }
 
 @Composable
-private fun StartFlightButton(enabled: Boolean, onClick: () -> Unit) {
+internal fun StartFlightButton(enabled: Boolean, onClick: () -> Unit) {
     Button(
         onClick = onClick,
         enabled = enabled,

@@ -14,6 +14,21 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
@@ -24,6 +39,9 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -42,6 +60,8 @@ import com.nexplay.dronepreflight.ui.screens.ChecklistScreen
 import com.nexplay.dronepreflight.ui.screens.DashboardScreen
 import com.nexplay.dronepreflight.ui.screens.FlightModeScreen
 import com.nexplay.dronepreflight.ui.screens.HistoryScreen
+import com.nexplay.dronepreflight.ui.screens.LotScreen
+import com.nexplay.dronepreflight.ui.screens.PogodaScreen
 import com.nexplay.dronepreflight.ui.screens.MapaScreen
 import com.nexplay.dronepreflight.ui.screens.OnboardingScreen
 import com.nexplay.dronepreflight.ui.screens.PulpitScreen
@@ -50,10 +70,20 @@ import com.nexplay.dronepreflight.ui.theme.DronePreflightTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-private enum class Tab(val label: String, val icon: ImageVector) {
-    Pulpit("Pulpit", Icons.Default.Dashboard),
+/**
+ * Zakładki aplikacji. [wPasku] decyduje, czy ikona siedzi na dolnym pasku, czy
+ * w siatce pod przyciskiem "Więcej".
+ *
+ * Sześć ikon nie mieściło się na szerokości telefonu — etykiety łamały się na dwie
+ * linie ("Kalend arz", "Checkl ista"). Na pasku zostają cztery najczęstsze plus
+ * "Więcej"; reszta nie znika, tylko przenosi się o jedno dotknięcie dalej.
+ */
+private enum class Tab(val label: String, val icon: ImageVector, val wPasku: Boolean = false) {
+    Pulpit("Pulpit", Icons.Default.Dashboard, true),
+    Pogoda("Pogoda", Icons.Default.Cloud, true),
+    Mapa("Mapa", Icons.Default.Map, true),
+    Lot("Lot", Icons.Default.FlightTakeoff, true),
     Kalendarz("Kalendarz", Icons.Default.CalendarMonth),
-    Mapa("Mapa", Icons.Default.Map),
     Historia("Historia", Icons.Default.History),
     Checklist("Checklista", Icons.Default.Checklist),
     Settings("Ustawienia", Icons.Default.Settings),
@@ -180,6 +210,19 @@ class MainActivity : ComponentActivity() {
                     AssistantSheet(vm = vm, onDismiss = { assistantOpen = false })
                 }
 
+                // Siatka ekranów spoza dolnego paska
+                var pokazWiecej by rememberSaveable { mutableStateOf(false) }
+                if (pokazWiecej) {
+                    WiecejSheet(
+                        pozycje = Tab.entries.filter { !it.wPasku },
+                        onWybor = { tab ->
+                            pokazWiecej = false
+                            scope.launch { pagerState.animateScrollToPage(tab.ordinal) }
+                        },
+                        onDismiss = { pokazWiecej = false },
+                    )
+                }
+
                 LaunchedEffect(Unit) {
                     val perms = mutableListOf(
                         Manifest.permission.ACCESS_COARSE_LOCATION,
@@ -209,16 +252,24 @@ class MainActivity : ComponentActivity() {
                     },
                     bottomBar = {
                         NavigationBar {
-                            Tab.entries.forEachIndexed { index, tab ->
+                            Tab.entries.filter { it.wPasku }.forEach { tab ->
                                 NavigationBarItem(
                                     selected = current == tab,
                                     onClick = {
-                                        scope.launch { pagerState.animateScrollToPage(index) }
+                                        scope.launch { pagerState.animateScrollToPage(tab.ordinal) }
                                     },
                                     icon = { Icon(tab.icon, contentDescription = tab.label) },
                                     label = { Text(tab.label) },
                                 )
                             }
+                            // "Więcej" podświetla się, gdy jesteś na którymkolwiek
+                            // z ekranów schowanych w siatce
+                            NavigationBarItem(
+                                selected = !current.wPasku,
+                                onClick = { pokazWiecej = true },
+                                icon = { Icon(Icons.Default.Apps, contentDescription = "Więcej") },
+                                label = { Text("Więcej") },
+                            )
                         }
                     },
                     floatingActionButton = {
@@ -242,6 +293,17 @@ class MainActivity : ComponentActivity() {
                                 onStopMonitor = { StormMonitorService.stop(applicationContext) },
                                 onStartFlight = { flightModeActive = true },
                                 units = state.units,
+                            )
+                            Tab.Pogoda -> PogodaScreen(
+                                state = state,
+                                units = state.units,
+                            )
+                            Tab.Lot -> LotScreen(
+                                state = state,
+                                units = state.units,
+                                onStartMonitor = { StormMonitorService.start(applicationContext) },
+                                onStopMonitor = { StormMonitorService.stop(applicationContext) },
+                                onStartFlight = { flightModeActive = true },
                             )
                             Tab.Kalendarz -> DashboardScreen(
                                 state = state,
@@ -306,5 +368,60 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+}
+
+/**
+ * Siatka ekranów ukrytych pod "Więcej".
+ *
+ * Nie chowamy tu niczego na stałe — to te same strony pagera, tylko bez własnej
+ * ikony na pasku. Dzięki temu pasek zostaje czytelny, a ekranów może być więcej.
+ */
+@Composable
+private fun WiecejSheet(
+    pozycje: List<Tab>,
+    onWybor: (Tab) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Zamknij") }
+        },
+        title = { Text("Więcej") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                pozycje.chunked(2).forEach { para ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        para.forEach { tab ->
+                            WiecejKafelek(tab, Modifier.weight(1f)) { onWybor(tab) }
+                        }
+                        if (para.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun WiecejKafelek(tab: Tab, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable { onClick() }
+            .padding(vertical = 16.dp, horizontal = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(tab.icon, contentDescription = tab.label, modifier = Modifier.size(26.dp))
+        Text(
+            tab.label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+        )
     }
 }
