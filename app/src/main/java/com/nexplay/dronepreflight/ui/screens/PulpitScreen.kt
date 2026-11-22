@@ -168,13 +168,9 @@ fun PulpitScreen(
                 // Wczesniej MissionControlCard, CommandCenterCard i VerdictCard stały
                 // jedna pod druga i odpowiadaly na to samo pytanie trzy razy.
                 MissionHeroCard(state = state, report = report, units = units)
-                // Anomalie źródeł — jeśli któreś odjeżdża
-                val anomalies = remember(state.snapshot.fetchedAt) {
-                    com.nexplay.dronepreflight.data.AnomalyDetector.detect(state.snapshot)
-                }
-                if (anomalies.isNotEmpty()) {
-                    AnomalyCard(anomalies)
-                }
+                // Anomalie źródeł pokazuje zakładka POGODA. Na Pulpicie była tekstem
+                // dla programisty ("wttr.in pokazuje 10000,0 m"), z którego pilot nic
+                // nie wynosi — mediana i tak jest już policzona.
             }
             BestTimeCard(state.bestWindow, state.hourlyOutlook)
 
@@ -274,7 +270,8 @@ private fun LocationCard(
                     color = OpsColors.TextPrimary,
                 )
                 Text(
-                    "Aktualizacja: $time · ${formatDatePolish(selectedDate)}",
+                    // "Aktualizacja:" mówiło to samo co ikona odświeżania obok
+                    "${formatDatePolish(selectedDate)} · dane z $time",
                     style = MaterialTheme.typography.bodySmall,
                     color = OpsColors.TextSecondary,
                 )
@@ -832,13 +829,8 @@ private fun ConfidenceBadge(c: ConfidenceCalculator.Confidence) {
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
         )
-        Box(
-            Modifier
-                .background(col.copy(alpha = 0.18f), MaterialTheme.shapes.small)
-                .padding(horizontal = 8.dp, vertical = 2.dp)
-        ) {
-            Text(c.label, color = col, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-        }
+        // Plakietka HIGH/MEDIUM/LOW mówiła dokładnie to samo co procent obok,
+        // tylko mniej precyzyjnie — i w dodatku po angielsku.
     }
 }
 
@@ -1578,6 +1570,9 @@ private fun formatDatePolish(date: LocalDate): String {
         9 -> "wrz"; 10 -> "paź"; 11 -> "lis"; 12 -> "gru"
         else -> ""
     }
-    val d = "${date.dayOfMonth} $month ${date.year}"
-    return if (label != null) "$label · $d" else d
+    // Przy "Dzisiaj" pełna data niczego nie dodaje — kalendarz i tak jest obok.
+    // Rok pokazujemy tylko wtedy, gdy nie jest bieżący.
+    val rok = if (date.year != today.year) " ${date.year}" else ""
+    val d = "${date.dayOfMonth} $month$rok"
+    return label ?: d
 }
